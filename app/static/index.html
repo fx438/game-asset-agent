@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>游戏资源图片 Agent</title>
 <script src="https://unpkg.com/vue@3.4.38/dist/vue.global.prod.js"></script>
+<!-- STATIC_DEMO: deploy/pages/build.py 构建 GitHub Pages 静态站时在这里注入浏览器内模拟后端 -->
 <style>
   :root { --bg:#f4f5f7; --dot:#d5d9e0; --card:#fff; --text:#1f2329; --muted:#646a73; --line:#e3e5e8; --primary:#3370ff; --primary-soft:#eef3ff;
     --ok:#2ea121; --ok-soft:#e4f5e1; --warn:#de7802; --warn-soft:#fff3e0; --bad:#d83931; --bad-soft:#fdecea; --shadow:0 4px 16px rgba(31,35,41,.08); }
@@ -72,6 +73,7 @@
   .style b { display:block; font-size:13px; }
   .style span { color:var(--muted); font-size:11px; line-height:1.35; display:block; }
   .style.sel { border-color:var(--primary); background:var(--primary-soft); }
+  .style.off { opacity:.4; cursor:not-allowed; }
   .master-img { width:100%; border-radius:10px; border:1px solid var(--line); display:block; cursor:zoom-in; image-rendering:pixelated; }
   details summary { cursor:pointer; font-size:12px; color:var(--muted); margin-top:6px; }
   .prompt { font-size:12px; background:#f6f7f9; border-radius:6px; padding:6px 8px; max-height:110px; overflow:auto; white-space:pre-wrap; word-break:break-all; }
@@ -198,19 +200,20 @@
                   <thead><tr><th>英雄</th><th>角色</th><th>动作</th><th style="width:60px">张数</th><th>视角</th><th>补充描述</th><th></th></tr></thead>
                   <tbody>
                     <tr v-for="(t, ti) in editTasks">
-                      <td><input v-model="t.hero"></td><td><input v-model="t.role"></td><td><input v-model="t.action"></td>
+                      <td><input v-model="t.hero" :readonly="sys.static_demo"></td><td><input v-model="t.role" :readonly="sys.static_demo"></td><td><input v-model="t.action" :readonly="sys.static_demo"></td>
                       <td><input type="number" min="1" v-model.number="t.count"></td><td><input v-model="t.view"></td>
                       <td><input v-model="t.description"></td><td><button class="x" title="删除" @click="editTasks.splice(ti, 1)">✕</button></td>
                     </tr>
                   </tbody>
                 </table>
                 <div class="row" style="margin-top:6px">
-                  <button @click="editTasks.push({hero:'', role:'通用', action:'', count:1, view:'', description:''})">＋ 添加任务</button>
+                  <button v-if="!sys.static_demo" @click="editTasks.push({hero:'', role:'通用', action:'', count:1, view:'', description:''})">＋ 添加任务</button>
+                  <span v-else class="muted">静态演示可改张数、删任务；</span>
                   <span class="muted">合计 {{ editTotal }} 张<template v-if="sys.total_images_limit">（演示上限 {{ sys.total_images_limit }}）</template></span>
                 </div>
                 <div class="sub">选择画风</div>
                 <div class="styles">
-                  <div v-for="s in styles" class="style" :class="{sel: styleKey===s.key}" @click="styleKey=s.key"><b>{{ s.name }}</b><span>{{ s.description }}</span></div>
+                  <div v-for="s in styles" class="style" :class="{sel: styleKey===s.key, off: styleLocked(s)}" :title="styleLocked(s) ? '静态演示只有像素风示例图' : ''" @click="styleLocked(s) || (styleKey = s.key)"><b>{{ s.name }}</b><span>{{ s.description }}</span></div>
                 </div>
                 <input v-model="styleNotes" placeholder="风格补充（可选），如：冷色调、暗黑奇幻">
                 <button class="primary block" :disabled="busy || !styleKey" @click="confirmPlan">确认清单并生成风格母版 →</button>
@@ -316,17 +319,21 @@
     <span v-if="cur" class="pill" :class="cur.status">{{ label(cur.status) }}</span>
     <span class="spacer"></span>
     <span class="mode" :class="{demo: sys.demo_mode, mock: sys.mock_ai && !sys.demo_mode}" v-if="sys.task_mode">{{ modeText }}</span>
-    <a href="/docs" target="_blank">接口文档</a>
+    <a v-if="sys.static_demo" :href="sys.repo_url" target="_blank">GitHub 源码</a>
+    <a v-else href="/docs" target="_blank">接口文档</a>
   </div>
 
   <div class="panel newp" v-if="showNew">
     <h3>新建项目</h3>
     <button class="primary block" :disabled="busy" @click="useExample">⚡ 使用示例需求（3 英雄 × 2 动作 × 4 帧）</button>
+    <p v-if="sys.static_demo" class="muted" style="margin:8px 0 0">静态演示站只能运行示例需求。上传自己的文档需要在本地用 Docker 运行完整版。</p>
+    <template v-else>
     <div class="or">或上传自己的需求文档</div>
     <input v-model="newName" placeholder="项目名称，如：第一期英雄动作">
     <input type="file" ref="file" accept=".docx,.xlsx,.pdf,.txt,.md,.csv">
     <button class="block" :disabled="busy" @click="create">上传并开始拆解</button>
     <p class="muted" style="margin:8px 0 0">支持 Word / Excel / PDF / 文本，Excel 带"英雄、角色、动作、数量"表头时直接按表读取。<template v-if="sys.demo_mode">演示站文件上限 {{ sys.upload_limit_mb }}MB，每个项目最多 {{ sys.total_images_limit }} 张。</template></p>
+    </template>
   </div>
 
   <!-- 欢迎页 -->
@@ -334,10 +341,11 @@
     <h2>把策划需求文档变成一套画风统一的游戏角色图</h2>
     <div class="pipeline"><span>📄 需求拆解</span>→<span>🎨 风格母版</span>→<span>🖼️ 批量生图</span>→<span>🔍 自动 + 人工审查</span>→<span>📦 入库</span></div>
     <p>五个 Agent 节点由 LangGraph 编排，需要人确认的地方会暂停等你操作。整个流程展开在一张无限画布上：拖动空白处平移，滚轮缩放。</p>
-    <p v-if="sys.demo_mode" style="color:var(--ok)">这是在线演示，不调用任何付费模型：示例需求展示的是预先画好的示例图，上传其他文档时由本地程序现画像素图。</p>
+    <p v-if="sys.static_demo" style="color:var(--ok)">这是部署在 GitHub Pages 上的静态演示：后端流程在浏览器里模拟，图片是预先画好的示例图，不调用任何模型。完整版（FastAPI + LangGraph + 百炼）请参考 <a :href="sys.repo_url" target="_blank">GitHub 仓库</a>本地运行。</p>
+    <p v-else-if="sys.demo_mode" style="color:var(--ok)">这是在线演示，不调用任何付费模型：示例需求展示的是预先画好的示例图，上传其他文档时由本地程序现画像素图。</p>
     <div class="row">
       <button class="primary" :disabled="busy" @click="useExample">⚡ 用示例需求跑一遍</button>
-      <button @click="showNew = true">上传自己的文档</button>
+      <button v-if="!sys.static_demo" @click="showNew = true">上传自己的文档</button>
     </div>
     <template v-if="projects.length">
       <div class="sub">最近的项目</div>
@@ -426,6 +434,7 @@ const CARD = 132, GAP = 10, PAD = 12, HEAD = 44, NODE_GAP = 90, ROW_MAX = 1900;
 const MIN_K = 0.1, MAX_K = 3;
 
 async function api(path, opts = {}) {
+  if (window.mockApi) return window.mockApi(path, opts);
   const r = await fetch('/api' + path, opts);
   const data = r.headers.get('content-type')?.includes('json') ? await r.json() : null;
   if (!r.ok) throw new Error(data?.detail ? (typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail)) : r.statusText);
@@ -453,6 +462,7 @@ createApp({
     libPath() { const k = this.assets[0]?.archive_key; return k ? k.split('/').slice(0, 2).join('/') + '/…' : '-'; },
     modeText() {
       const s = this.sys;
+      if (s.static_demo) return '静态演示 · 浏览器内模拟后端，不调用任何模型';
       if (s.demo_mode) return '在线演示 · 不调用任何付费模型';
       if (s.mock_ai) return 'MOCK 模式（未配置百炼 Key）· 任务：' + s.task_mode;
       return `百炼：${s.llm_model} / ${s.vl_model} / ${s.image_model} · 任务：${s.task_mode}`;
@@ -556,7 +566,8 @@ createApp({
       if (last && this.projects.some(p => p.id === last)) await this.open(last);
     } catch (e) { this.notify('❌ ' + e.message); }
     this.loaded = true;
-    setInterval(() => this.poll(), 2500);
+    // 浏览器内模拟后端跑得快，轮询也快一些
+    setInterval(() => this.poll(), this.sys.static_demo ? 800 : 2500);
   },
   updated() {
     // 新出现的节点 / 画板加入尺寸监听
@@ -566,6 +577,7 @@ createApp({
     label: s => LABELS[s] || s,
     styleName(k) { return this.styles.find(s => s.key === k)?.name || k; },
     countOf(...ss) { return this.assets.filter(a => ss.includes(a.status)).length; },
+    styleLocked(s) { return !!this.sys.static_demo && s.key !== 'pixel'; },
     canReview(a) { return this.cur?.status === 'HUMAN_REVIEWING' && DECIDABLE.includes(a.status); },
     nodeWidth(id, st) {
       if (id === 'parse') return st === 'waiting' ? 720 : 330;
@@ -611,7 +623,7 @@ createApp({
       this.newName = '';
     }); },
     useExample() { this.run(async () => {
-      const r = await fetch('/static/examples/demo_requirement.xlsx');
+      const r = await fetch('static/examples/demo_requirement.xlsx');
       if (!r.ok) throw new Error('示例文件加载失败');
       const blob = await r.blob();
       await this.submitProject('示例：亚瑟 / 梅林 / 罗宾 动作帧', new File([blob], 'demo_requirement.xlsx', { type: blob.type }));

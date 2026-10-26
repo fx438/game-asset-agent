@@ -35,3 +35,6 @@ Thumbs.db
 
 # 示例图原稿（只提交切好的 frames/）
 app/static/examples/gpt/
+
+# GitHub Pages 静态站构建产物
+_site/
