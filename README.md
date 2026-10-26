@@ -4,6 +4,8 @@
 
 **需求拆解 → 风格母版（提示词扩写）→ 批量生图 → 自动审查 + 人工审查 → 归档到项目资源库**
 
+**在线 Demo：https://fx438.github.io/game-asset-agent/** （静态演示：流程在浏览器里模拟，图片是预先画好的示例图，不调用任何模型；完整版见下方"运行方式"）
+
 ![无限画布全局视图](docs/screenshots/canvas-overview.png)
 
 | 确认任务清单 + 选画风 | 风格母版（驳回后重新生成） |
@@ -117,7 +119,7 @@ uvicorn app.main:app --reload
 
 不需要任何密钥就能跑通完整流程。
 
-### 在线演示模式
+### 演示模式（DEMO_MODE）
 
 设置 `DEMO_MODE=true` 后：
 
@@ -125,11 +127,24 @@ uvicorn app.main:app --reload
 - 收紧用量：单个任务最多 8 张，每个项目最多 32 张，上传文件最大 2MB；
 - 前端顶部显示"在线演示 · 不调用任何付费模型"，并提供"使用示例需求"按钮（`app/static/examples/demo_requirement.xlsx`）。
 
-Hugging Face Spaces 的部署文件在 `deploy/hf-space/`。
+### GitHub Pages 静态演示
+
+在线 Demo 部署在 GitHub Pages 上，没有服务器：
+
+- `deploy/pages/mock-api.js` 在浏览器里模拟全部 `/api` 接口和工作流状态机（拆解 → 母版 → 并发生图 + 自动审查重试 → 人工审核回流 → 归档），接口路径、返回结构和校验规则与后端一致，前端代码不区分两种模式；
+- `deploy/pages/build.py` 把前端、模拟后端和示例图组装成静态站，`.github/workflows/pages.yml` 在推送到 main 时自动发布；
+- 静态站只能运行示例需求（像素风），数据保存在浏览器 localStorage 中。
+
+本地预览：
+
+```bash
+python deploy/pages/build.py _site
+python -m http.server -d _site 8080
+```
 
 ## 开源版说明
 
-- 在线 Demo 和默认配置都是 mock 模式：示例需求展示的是预先画好的示例图，其他需求由本地程序现画，都不是实时调用模型的结果。要接真实模型，在本地 `.env` 里填自己的 `DASHSCOPE_API_KEY`。
+- 在线 Demo 是浏览器内模拟的静态版；默认配置下的本地运行是 mock 模式：示例需求展示预先画好的示例图，其他需求由本地程序现画。两者都不是实时调用模型的结果。要接真实模型，在本地 `.env` 里填自己的 `DASHSCOPE_API_KEY`。
 - 原项目在客户环境里对 Qwen-VL 做过 LoRA 微调用于审查；微调数据和权重属于客户，开源版改为直接调用 qwen-vl-max 接口，审查逻辑（规则检查 + 双维度打分 + 代码按阈值判定）保持一致。
 
 ## 测试
@@ -170,7 +185,7 @@ app/
   workflow/    LangGraph 工作流
   config.py  db.py  models.py  schemas.py  state_machine.py  storage.py  main.py
   static/      前端页面（无限画布）+ 示例需求
-deploy/hf-space/  在线演示的 Dockerfile
+deploy/pages/     GitHub Pages 静态演示（浏览器内模拟后端 + 构建脚本）
 tests/
 ```
 
