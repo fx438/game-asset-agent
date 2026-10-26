@@ -1,0 +1,36 @@
+# Web / API
+fastapi==0.143.0
+uvicorn[standard]==0.54.0
+python-multipart==0.0.32
+pydantic==2.14.0
+pydantic-settings==2.15.0
+
+# 数据库
+SQLAlchemy==2.1.4
+psycopg[binary]==3.3.6
+psycopg-pool==3.3.3
+
+# Agent 编排
+langgraph==1.2.14
+langgraph-checkpoint-postgres==3.1.2
+tenacity==9.2.1
+
+# 异步任务
+celery==5.6.3
+redis==6.4.0
+
+# 对象存储
+minio==7.2.20
+
+# 大模型（DashScope OpenAI 兼容模式 + 万相 HTTP 接口）
+openai==3.26.1
+httpx==0.28.1
+
+# 文档解析与图片
+python-docx==1.2.0
+openpyxl==3.1.5
+pdfplumber==0.11.10
+pillow==12.3.0
+
+# 测试
+pytest==9.1.1

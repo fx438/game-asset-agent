@@ -1,0 +1,34 @@
+# 环境变量（含 DashScope Key、数据库密码，严禁提交）
+.env
+.env.*
+!.env.example
+
+# 本地数据（SQLite、本地存储的图片）
+.data/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Celery
+celerybeat-schedule*
+celerybeat.pid
+
+# 日志 / 临时文件
+*.log
+logs/
+*.tmp
+*.temp
+*.swp
+
+# IDE / 系统
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db

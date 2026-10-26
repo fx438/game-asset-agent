@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>游戏资源图片 Agent</title>
+<script src="https://unpkg.com/vue@3.4.38/dist/vue.global.prod.js"></script>
+<style>
+  :root { --bg:#f5f6f8; --card:#fff; --text:#1f2329; --muted:#646a73; --line:#e3e5e8; --primary:#3370ff; --ok:#2ea121; --warn:#de7802; --bad:#d83931; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif; background:var(--bg); color:var(--text); }
+  header { display:flex; align-items:center; gap:12px; padding:12px 20px; background:var(--card); border-bottom:1px solid var(--line); }
+  header h1 { font-size:18px; margin:0; }
+  .badge { font-size:12px; padding:2px 8px; border-radius:10px; background:#eef1f6; color:var(--muted); }
+  .badge.mock { background:#fff3e0; color:var(--warn); }
+  main { display:grid; grid-template-columns:300px 1fr; gap:16px; padding:16px 20px; }
+  @media (max-width:900px){ main { grid-template-columns:1fr; } }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:16px; margin-bottom:16px; }
+  .card h2 { font-size:15px; margin:0 0 12px; }
+  input, select, textarea { font:inherit; padding:6px 8px; border:1px solid var(--line); border-radius:6px; width:100%; }
+  button { font:inherit; padding:6px 14px; border:1px solid var(--line); border-radius:6px; background:#fff; cursor:pointer; }
+  button.primary { background:var(--primary); border-color:var(--primary); color:#fff; }
+  button.danger { color:var(--bad); border-color:#f3c3c0; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .muted { color:var(--muted); font-size:12px; }
+  .plist div { padding:8px; border-radius:6px; cursor:pointer; display:flex; justify-content:space-between; gap:8px; }
+  .plist div:hover, .plist .active { background:#eef3ff; }
+  .steps { display:flex; gap:4px; margin-bottom:16px; flex-wrap:wrap; }
+  .steps span { flex:1; min-width:90px; text-align:center; padding:6px; font-size:12px; border-radius:4px; background:#eef0f3; color:var(--muted); }
+  .steps .done { background:#e4f5e1; color:var(--ok); }
+  .steps .now { background:var(--primary); color:#fff; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { border-bottom:1px solid var(--line); padding:6px; text-align:left; vertical-align:top; }
+  th { font-size:12px; color:var(--muted); font-weight:normal; }
+  .styles { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:8px; }
+  .style { border:2px solid var(--line); border-radius:8px; padding:10px; cursor:pointer; }
+  .style.sel { border-color:var(--primary); background:#f3f6ff; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:12px; }
+  .asset { border:1px solid var(--line); border-radius:8px; overflow:hidden; background:#fff; }
+  .asset img { width:100%; aspect-ratio:1; object-fit:contain; background:#f0f1f3; display:block; }
+  .asset .body { padding:8px; font-size:12px; }
+  .st { font-size:12px; padding:1px 6px; border-radius:4px; background:#eef0f3; }
+  .st.APPROVED, .st.ARCHIVED, .st.WAITING_HUMAN { background:#e4f5e1; color:var(--ok); }
+  .st.AUTO_FAILED { background:#fff3e0; color:var(--warn); }
+  .st.REJECTED, .st.ERROR, .st.FAILED { background:#fdecea; color:var(--bad); }
+  .master img { max-width:420px; width:100%; border-radius:8px; border:1px solid var(--line); }
+  .bar { height:8px; background:#eef0f3; border-radius:4px; overflow:hidden; }
+  .bar i { display:block; height:100%; background:var(--primary); transition:width .4s; }
+  .err { color:var(--bad); white-space:pre-wrap; }
+  .toast { position:fixed; right:20px; bottom:20px; background:#1f2329; color:#fff; padding:10px 16px; border-radius:6px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>🎮 游戏资源图片 Agent</h1>
+    <span class="badge" :class="{mock: sys.mock_ai}" v-if="sys.task_mode">
+      {{ sys.mock_ai ? 'MOCK 模式（未配置百炼 Key）' : '百炼：' + sys.llm_model + ' / ' + sys.vl_model + ' / ' + sys.image_model }} · 任务：{{ sys.task_mode }}
+    </span>
+    <a href="/docs" target="_blank" class="muted" style="margin-left:auto">接口文档</a>
+  </header>
+  <main>
+    <section>
+      <div class="card">
+        <h2>新建项目</h2>
+        <input v-model="newName" placeholder="项目名称，如：第一期英雄动作" style="margin-bottom:8px">
+        <input type="file" ref="file" accept=".docx,.xlsx,.pdf,.txt,.md,.csv" style="margin-bottom:8px">
+        <button class="primary" :disabled="busy" @click="create">上传需求文档</button>
+        <p class="muted">支持 Word / Excel / PDF / 文本。Excel 带"英雄、角色、动作、数量"表头时直接按表读取。</p>
+      </div>
+      <div class="card plist">
+        <h2>项目列表</h2>
+        <div v-for="p in projects" :key="p.id" :class="{active: cur && cur.id===p.id}" @click="open(p.id)">
+          <span>#{{p.id}} {{p.name}}</span><span class="st" :class="p.status">{{ label(p.status) }}</span>
+        </div>
+        <p v-if="!projects.length" class="muted">还没有项目</p>
+      </div>
+    </section>
+
+    <section v-if="cur">
+      <div class="steps">
+        <span v-for="(s,i) in STEPS" :class="{done: stepIndex>i, now: stepIndex===i}">{{ s }}</span>
+      </div>
+
+      <div class="card">
+        <div class="row" style="justify-content:space-between">
+          <h2 style="margin:0">#{{cur.id}} {{cur.name}} <span class="st" :class="cur.status">{{ label(cur.status) }}</span></h2>
+          <span class="muted">源文件：{{cur.source_filename}} · 共 {{cur.total_images}} 张 · 人工驳回轮次 {{cur.review_round}}</span>
+        </div>
+        <p class="err" v-if="cur.error">{{ cur.error }}</p>
+        <p v-if="WORKING.includes(cur.status)" class="muted">⏳ {{ label(cur.status) }}，页面会自动刷新…</p>
+      </div>
+
+      <!-- 确认任务清单 + 选风格 -->
+      <template v-if="cur.status==='PLAN_CONFIRMING'">
+        <div class="card">
+          <h2>① 确认任务清单</h2>
+          <ul v-if="cur.parse_issues.length" class="muted"><li v-for="i in cur.parse_issues">{{ i }}</li></ul>
+          <table>
+            <tr><th>英雄</th><th>角色</th><th>动作</th><th style="width:80px">张数</th><th>视角</th><th>补充描述</th><th></th></tr>
+            <tr v-for="(t,i) in editTasks">
+              <td><input v-model="t.hero"></td><td><input v-model="t.role"></td><td><input v-model="t.action"></td>
+              <td><input type="number" min="1" v-model.number="t.count"></td><td><input v-model="t.view"></td>
+              <td><input v-model="t.description"></td><td><button class="danger" @click="editTasks.splice(i,1)">删</button></td>
+            </tr>
+          </table>
+          <div class="row" style="margin-top:8px"><button @click="editTasks.push({hero:'',role:'通用',action:'',count:1,view:'',description:''})">+ 添加任务</button>
+            <span class="muted">合计 {{ editTasks.reduce((a,t)=>a+(+t.count||0),0) }} 张</span></div>
+        </div>
+        <div class="card">
+          <h2>② 选择风格母版</h2>
+          <div class="styles">
+            <div v-for="s in styles" class="style" :class="{sel: styleKey===s.key}" @click="styleKey=s.key">
+              <b>{{s.name}}</b><div class="muted">{{s.description}}</div>
+            </div>
+          </div>
+          <input v-model="styleNotes" placeholder="风格补充（可选），如：冷色调、暗黑奇幻" style="margin-top:8px">
+          <div style="margin-top:12px"><button class="primary" :disabled="busy||!styleKey" @click="confirmPlan">确认并生成风格母版</button></div>
+        </div>
+      </template>
+
+      <!-- 母版确认 -->
+      <div class="card master" v-if="masters.length && ['MASTER_CONFIRMING','MASTER_GENERATING'].includes(cur.status)">
+        <h2>③ 风格母版 v{{masters[0].version}}</h2>
+        <img :src="masters[0].image_url">
+        <p class="muted">Seed：{{masters[0].seed}}<br>提示词：{{masters[0].prompt}}</p>
+        <div class="row" v-if="cur.status==='MASTER_CONFIRMING'">
+          <button class="primary" :disabled="busy" @click="confirmMaster(true)">风格满意，锁定并批量生图</button>
+          <input v-model="masterFeedback" placeholder="不满意？写下修改意见" style="flex:1;min-width:200px">
+          <button :disabled="busy" @click="confirmMaster(false)">按意见重新生成</button>
+        </div>
+        <details v-if="masters.length>1"><summary class="muted">历史版本（{{masters.length-1}}）</summary>
+          <div class="row"><div v-for="m in masters.slice(1)" style="width:140px"><img :src="m.image_url" style="width:140px"><div class="muted">v{{m.version}} {{m.feedback}}</div></div></div>
+        </details>
+      </div>
+
+      <!-- 生成进度 / 人工审核 / 资源库 -->
+      <div class="card" v-if="assets.length">
+        <div class="row" style="justify-content:space-between">
+          <h2 style="margin:0">{{ cur.status==='ARCHIVED' ? '⑥ 已入库资源' : cur.status==='HUMAN_REVIEWING' ? '⑤ 人工审核' : '④ 批量生成 + 自动审查' }}</h2>
+          <div class="row" v-if="cur.status==='HUMAN_REVIEWING'">
+            <button :disabled="busy" @click="approveAllPassed">一键通过全部自动审查合格的图</button>
+            <button class="primary" :disabled="busy" @click="submitReview">提交本轮审核（待审 {{ undecided }}）</button>
+          </div>
+        </div>
+        <div v-if="cur.status==='GENERATING'" style="margin:8px 0">
+          <div class="bar"><i :style="{width: doneRatio+'%'}"></i></div>
+          <span class="muted">已完成 {{ doneCount }} / {{ assets.length }}</span>
+        </div>
+        <div class="grid" style="margin-top:12px">
+          <div class="asset" v-for="a in assets" :key="a.id">
+            <img v-if="a.image_url" :src="a.image_url + '?v=' + a.version" loading="lazy">
+            <div class="body">
+              <div class="row" style="justify-content:space-between"><b>{{a.hero}}·{{a.action}} #{{a.seq}}</b><span class="st" :class="a.status">{{ label(a.status) }}</span></div>
+              <div class="muted">{{a.frame_desc}} · v{{a.version}}</div>
+              <div v-if="a.last_issues.length" class="muted" style="color:var(--warn)">⚠ {{ a.last_issues.join('；') }}</div>
+              <div v-if="a.error" class="err">{{a.error}}</div>
+              <div v-if="a.archive_key" class="muted">📁 {{a.archive_key}}</div>
+              <template v-if="cur.status==='HUMAN_REVIEWING' && ['WAITING_HUMAN','AUTO_FAILED','ERROR','APPROVED','REJECTED'].includes(a.status)">
+                <input v-model="comments[a.id]" placeholder="驳回批注" style="margin:6px 0">
+                <div class="row">
+                  <button :disabled="busy || a.status==='ERROR'" @click="review(a,true)">✓ 通过</button>
+                  <button class="danger" :disabled="busy" @click="review(a,false)">✗ 驳回</button>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section v-else class="card"><p class="muted">← 新建或选择一个项目</p></section>
+  </main>
+  <div class="toast" v-if="toast">{{ toast }}</div>
+</div>
+
+<script>
+const { createApp } = Vue;
+const LABELS = { CREATED:'已创建', PARSING:'需求拆解中', PLAN_CONFIRMING:'待确认清单', MASTER_GENERATING:'母版生成中', MASTER_CONFIRMING:'待确认母版',
+  GENERATING:'批量生成中', HUMAN_REVIEWING:'待人工审核', ARCHIVING:'归档中', ARCHIVED:'已入库', FAILED:'失败',
+  PENDING:'排队', AUTO_REVIEWING:'自动审查中', WAITING_HUMAN:'自动审查通过', AUTO_FAILED:'自动审查未通过', APPROVED:'已通过', REJECTED:'已驳回', ERROR:'生成失败' };
+const STEP_OF = { CREATED:0, PARSING:0, PLAN_CONFIRMING:1, MASTER_GENERATING:2, MASTER_CONFIRMING:2, GENERATING:3, HUMAN_REVIEWING:4, ARCHIVING:5, ARCHIVED:6, FAILED:-1 };
+
+async function api(path, opts = {}) {
+  const r = await fetch('/api' + path, opts);
+  const data = r.headers.get('content-type')?.includes('json') ? await r.json() : null;
+  if (!r.ok) throw new Error(data?.detail ? (typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail)) : r.statusText);
+  return data;
+}
+const json = (method, body) => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+
+createApp({
+  data: () => ({ sys:{}, projects:[], styles:[], cur:null, masters:[], assets:[], editTasks:[], styleKey:'pixel', styleNotes:'',
+    masterFeedback:'', comments:{}, newName:'', busy:false, toast:'', timer:null,
+    STEPS:['需求拆解','确认清单','风格母版','批量生成','人工审核','已入库'],
+    WORKING:['CREATED','PARSING','MASTER_GENERATING','GENERATING','ARCHIVING'] }),
+  computed: {
+    stepIndex() { return STEP_OF[this.cur?.status] ?? 0; },
+    doneCount() { return this.assets.filter(a => !['PENDING','GENERATING','AUTO_REVIEWING'].includes(a.status)).length; },
+    doneRatio() { return this.assets.length ? Math.round(this.doneCount * 100 / this.assets.length) : 0; },
+    undecided() { return this.assets.filter(a => ['WAITING_HUMAN','AUTO_FAILED','ERROR'].includes(a.status)).length; },
+  },
+  async mounted() {
+    [this.sys, this.styles] = await Promise.all([api('/system'), api('/styles')]);
+    await this.loadProjects();
+    this.timer = setInterval(() => this.poll(), 2500);
+  },
+  methods: {
+    label: s => LABELS[s] || s,
+    notify(msg) { this.toast = msg; setTimeout(() => this.toast = '', 3000); },
+    async run(fn) { this.busy = true; try { await fn(); } catch (e) { this.notify('❌ ' + e.message); } finally { this.busy = false; } },
+    async loadProjects() { this.projects = await api('/projects'); },
+    async open(id) {
+      const prev = this.cur?.status;
+      this.cur = await api('/projects/' + id);
+      if (this.cur.status === 'PLAN_CONFIRMING' && (prev !== 'PLAN_CONFIRMING' || !this.editTasks.length))
+        this.editTasks = this.cur.tasks.map(({ id, ...t }) => ({ ...t }));
+      this.masters = await api(`/projects/${id}/masters`);
+      this.assets = this.cur.status === 'ARCHIVED' ? await api(`/projects/${id}/library`) : await api(`/projects/${id}/assets`);
+    },
+    async poll() {
+      if (!this.cur) return;
+      if (this.WORKING.includes(this.cur.status)) { await this.open(this.cur.id); this.loadProjects(); }
+    },
+    create() { this.run(async () => {
+      const f = this.$refs.file.files[0];
+      if (!this.newName || !f) throw new Error('请填写项目名称并选择文件');
+      const fd = new FormData(); fd.append('name', this.newName); fd.append('file', f);
+      const p = await api('/projects', { method: 'POST', body: fd });
+      this.newName = ''; this.$refs.file.value = '';
+      await this.loadProjects(); await this.open(p.id);
+    }); },
+    confirmPlan() { this.run(async () => {
+      const r = await api(`/projects/${this.cur.id}/plan`, json('POST', { style_key: this.styleKey, style_notes: this.styleNotes || null, tasks: this.editTasks }));
+      this.notify(r.message); await this.open(this.cur.id);
+    }); },
+    confirmMaster(approved) { this.run(async () => {
+      const r = await api(`/projects/${this.cur.id}/master`, json('POST', { approved, feedback: this.masterFeedback || null }));
+      this.masterFeedback = ''; this.notify(r.message); await this.open(this.cur.id);
+    }); },
+    review(a, approved) { this.run(async () => {
+      Object.assign(a, await api(`/assets/${a.id}/review`, json('POST', { approved, comment: this.comments[a.id] || null })));
+    }); },
+    approveAllPassed() { this.run(async () => {
+      const ids = this.assets.filter(a => a.status === 'WAITING_HUMAN').map(a => a.id);
+      if (!ids.length) throw new Error('没有自动审查合格的待审图片');
+      await api(`/projects/${this.cur.id}/review/batch`, json('POST', { asset_ids: ids, approved: true }));
+      await this.open(this.cur.id);
+    }); },
+    submitReview() { this.run(async () => {
+      const r = await api(`/projects/${this.cur.id}/review/submit`, { method: 'POST' });
+      this.notify(r.message); await this.open(this.cur.id);
+    }); },
+  },
+}).mount('#app');
+</script>
+</body>
+</html>

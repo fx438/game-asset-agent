@@ -1,0 +1,72 @@
+# 基础设施：docker compose up -d postgres redis minio
+# 全部容器化（含 API 和 Celery worker）：docker compose --profile app up -d --build
+#
+# 宿主机端口特意避开默认端口（5432/6379/9000），以免和本机已装的 PostgreSQL / Redis 冲突。
+# 账号密码仅用于本地开发，可在 .env 中用 POSTGRES_PASSWORD / MINIO_ROOT_PASSWORD 覆盖。
+
+x-app-env: &app-env
+  DATABASE_URL: postgresql+psycopg://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/game_asset_agent
+  REDIS_URL: redis://redis:6379/0
+  TASK_MODE: celery
+  STORAGE_BACKEND: minio
+  MINIO_ENDPOINT: minio:9000
+  MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+  MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+  MINIO_BUCKET: game-assets
+  DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: game_asset_agent
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports: ["5434:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d game_asset_agent"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6381:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports: ["9010:9000", "9011:9001"]
+    volumes: [miniodata:/data]
+
+  api:
+    profiles: [app]
+    build: .
+    environment: *app-env
+    ports: ["8000:8000"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      minio: {condition: service_started}
+
+  worker:
+    profiles: [app]
+    build: .
+    environment: *app-env
+    # images 队列跑生图 + 自动审查（受万相限流约束），workflow 队列推进 LangGraph 工作流
+    command: celery -A app.tasks.celery_app worker -Q images,workflow -c 4 --loglevel=INFO
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      minio: {condition: service_started}
+
+volumes:
+  pgdata:
+  miniodata:
