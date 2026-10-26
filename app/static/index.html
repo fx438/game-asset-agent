@@ -2,184 +2,428 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>游戏资源图片 Agent</title>
 <script src="https://unpkg.com/vue@3.4.38/dist/vue.global.prod.js"></script>
 <style>
-  :root { --bg:#f5f6f8; --card:#fff; --text:#1f2329; --muted:#646a73; --line:#e3e5e8; --primary:#3370ff; --ok:#2ea121; --warn:#de7802; --bad:#d83931; }
+  :root { --bg:#f4f5f7; --dot:#d5d9e0; --card:#fff; --text:#1f2329; --muted:#646a73; --line:#e3e5e8; --primary:#3370ff; --primary-soft:#eef3ff;
+    --ok:#2ea121; --ok-soft:#e4f5e1; --warn:#de7802; --warn-soft:#fff3e0; --bad:#d83931; --bad-soft:#fdecea; --shadow:0 4px 16px rgba(31,35,41,.08); }
   * { box-sizing:border-box; }
-  body { margin:0; font:14px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif; background:var(--bg); color:var(--text); }
-  header { display:flex; align-items:center; gap:12px; padding:12px 20px; background:var(--card); border-bottom:1px solid var(--line); }
-  header h1 { font-size:18px; margin:0; }
-  .badge { font-size:12px; padding:2px 8px; border-radius:10px; background:#eef1f6; color:var(--muted); }
-  .badge.mock { background:#fff3e0; color:var(--warn); }
-  main { display:grid; grid-template-columns:300px 1fr; gap:16px; padding:16px 20px; }
-  @media (max-width:900px){ main { grid-template-columns:1fr; } }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:16px; margin-bottom:16px; }
-  .card h2 { font-size:15px; margin:0 0 12px; }
-  input, select, textarea { font:inherit; padding:6px 8px; border:1px solid var(--line); border-radius:6px; width:100%; }
-  button { font:inherit; padding:6px 14px; border:1px solid var(--line); border-radius:6px; background:#fff; cursor:pointer; }
+  [v-cloak] { display:none; }
+  html, body { margin:0; height:100%; overflow:hidden; }
+  body { font:14px/1.55 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif; background:var(--bg); color:var(--text); }
+  input, select, textarea { font:inherit; padding:6px 8px; border:1px solid var(--line); border-radius:6px; width:100%; background:#fff; color:inherit; }
+  button { font:inherit; padding:6px 14px; border:1px solid var(--line); border-radius:6px; background:#fff; cursor:pointer; color:inherit; white-space:nowrap; }
+  button:hover:not(:disabled) { border-color:#c9cdd4; }
   button.primary { background:var(--primary); border-color:var(--primary); color:#fff; }
-  button.danger { color:var(--bad); border-color:#f3c3c0; }
+  button.block { display:block; width:100%; margin-top:8px; }
   button:disabled { opacity:.5; cursor:not-allowed; }
+  a { color:var(--primary); text-decoration:none; }
   .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
   .muted { color:var(--muted); font-size:12px; }
-  .plist div { padding:8px; border-radius:6px; cursor:pointer; display:flex; justify-content:space-between; gap:8px; }
-  .plist div:hover, .plist .active { background:#eef3ff; }
-  .steps { display:flex; gap:4px; margin-bottom:16px; flex-wrap:wrap; }
-  .steps span { flex:1; min-width:90px; text-align:center; padding:6px; font-size:12px; border-radius:4px; background:#eef0f3; color:var(--muted); }
-  .steps .done { background:#e4f5e1; color:var(--ok); }
-  .steps .now { background:var(--primary); color:#fff; }
-  table { width:100%; border-collapse:collapse; }
-  th, td { border-bottom:1px solid var(--line); padding:6px; text-align:left; vertical-align:top; }
-  th { font-size:12px; color:var(--muted); font-weight:normal; }
-  .styles { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:8px; }
-  .style { border:2px solid var(--line); border-radius:8px; padding:10px; cursor:pointer; }
-  .style.sel { border-color:var(--primary); background:#f3f6ff; }
-  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:12px; }
-  .asset { border:1px solid var(--line); border-radius:8px; overflow:hidden; background:#fff; }
-  .asset img { width:100%; aspect-ratio:1; object-fit:contain; background:#f0f1f3; display:block; }
-  .asset .body { padding:8px; font-size:12px; }
-  .st { font-size:12px; padding:1px 6px; border-radius:4px; background:#eef0f3; }
-  .st.APPROVED, .st.ARCHIVED, .st.WAITING_HUMAN { background:#e4f5e1; color:var(--ok); }
-  .st.AUTO_FAILED { background:#fff3e0; color:var(--warn); }
-  .st.REJECTED, .st.ERROR, .st.FAILED { background:#fdecea; color:var(--bad); }
-  .master img { max-width:420px; width:100%; border-radius:8px; border:1px solid var(--line); }
-  .bar { height:8px; background:#eef0f3; border-radius:4px; overflow:hidden; }
+  .err { color:var(--bad); white-space:pre-wrap; font-size:12px; }
+  .sub { font-size:12px; color:var(--muted); margin:12px 0 6px; font-weight:600; }
+
+  /* ---------- 画布 ---------- */
+  .vp { position:fixed; inset:0; overflow:hidden; touch-action:none; user-select:none; cursor:default;
+    background-color:var(--bg); background-image:radial-gradient(var(--dot) 1.2px, transparent 1.2px); }
+  .vp.space, .vp.panning { cursor:grabbing; }
+  .vp.space { cursor:grab; }
+  .world { position:absolute; left:0; top:0; transform-origin:0 0; }
+  .world.anim { transition:transform .5s cubic-bezier(.2,.8,.2,1); }
+  .world .node, .world .frame, .world .world-label { position:absolute; transition:left .3s, top .3s; }
+  .world.dragging .node, .world.dragging .frame { transition:none; }
+  svg.edges { position:absolute; left:0; top:0; width:1px; height:1px; overflow:visible; pointer-events:none; }
+  .edge { fill:none; stroke:#c3c8d0; stroke-width:2.5; }
+  .edge.done { stroke:var(--ok); }
+  .edge.flow { stroke:var(--primary); stroke-dasharray:10 8; animation:flow 0.8s linear infinite; }
+  .edge.out { stroke:#c3c8d0; stroke-dasharray:4 6; stroke-width:2; }
+  @keyframes flow { to { stroke-dashoffset:-18; } }
+
+  /* ---------- 流程节点 ---------- */
+  .node { background:var(--card); border:1.5px solid var(--line); border-radius:14px; box-shadow:var(--shadow); }
+  .node-head { display:flex; align-items:center; gap:8px; padding:10px 14px; border-bottom:1px solid var(--line); cursor:grab; border-radius:14px 14px 0 0; }
+  .node-head .ico { font-size:18px; }
+  .node-head .nst { margin-left:auto; font-size:12px; padding:1px 8px; border-radius:10px; background:#eef0f3; color:var(--muted); }
+  .node-desc { font-size:11px; color:var(--muted); padding:6px 14px 0; }
+  .node-body { padding:8px 14px 14px; user-select:text; }
+  .node.running { border-color:var(--primary); animation:glow 1.6s ease-in-out infinite; }
+  .node.running .nst { background:var(--primary); color:#fff; }
+  .node.waiting { border-color:var(--warn); box-shadow:0 0 0 4px rgba(222,120,2,.15), var(--shadow); }
+  .node.waiting .nst { background:var(--warn); color:#fff; }
+  .node.done .nst { background:var(--ok-soft); color:var(--ok); }
+  .node.failed { border-color:var(--bad); }
+  .node.failed .nst { background:var(--bad); color:#fff; }
+  .node.idle { opacity:.75; }
+  @keyframes glow { 0%,100% { box-shadow:0 0 0 3px rgba(51,112,255,.12), var(--shadow); } 50% { box-shadow:0 0 0 9px rgba(51,112,255,.18), var(--shadow); } }
+  .spin::before { content:""; display:inline-block; width:12px; height:12px; margin-right:8px; vertical-align:-1px; border:2px solid var(--primary); border-right-color:transparent; border-radius:50%; animation:rot .8s linear infinite; }
+  @keyframes rot { to { transform:rotate(360deg); } }
+  .kv { font-size:13px; margin:4px 0; }
+  .kv b { font-size:18px; }
+  .mini-list { margin:4px 0 0; padding-left:18px; font-size:12px; }
+  .issues { margin:0 0 8px; padding:8px 8px 8px 24px; background:var(--warn-soft); border-radius:8px; font-size:12px; color:#8a4b00; }
+  table.tasks { width:100%; border-collapse:collapse; }
+  table.tasks th { font-size:12px; color:var(--muted); font-weight:normal; text-align:left; padding:2px 3px; }
+  table.tasks td { padding:2px 3px; }
+  table.tasks input { padding:4px 6px; }
+  table.tasks .x { padding:3px 8px; color:var(--bad); }
+  .styles { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-bottom:8px; }
+  .style { border:1.5px solid var(--line); border-radius:8px; padding:6px 8px; cursor:pointer; font-size:12px; }
+  .style b { display:block; font-size:13px; }
+  .style span { color:var(--muted); font-size:11px; line-height:1.35; display:block; }
+  .style.sel { border-color:var(--primary); background:var(--primary-soft); }
+  .master-img { width:100%; border-radius:10px; border:1px solid var(--line); display:block; cursor:zoom-in; image-rendering:pixelated; }
+  details summary { cursor:pointer; font-size:12px; color:var(--muted); margin-top:6px; }
+  .prompt { font-size:12px; background:#f6f7f9; border-radius:6px; padding:6px 8px; max-height:110px; overflow:auto; white-space:pre-wrap; word-break:break-all; }
+  .history { display:flex; gap:6px; margin-top:10px; flex-wrap:wrap; }
+  .hist { width:64px; text-align:center; font-size:11px; color:var(--muted); cursor:zoom-in; }
+  .hist img { width:64px; height:64px; border-radius:6px; border:1px solid var(--line); display:block; opacity:.7; image-rendering:pixelated; }
+  .bar { height:8px; background:#eef0f3; border-radius:4px; overflow:hidden; margin:6px 0; }
   .bar i { display:block; height:100%; background:var(--primary); transition:width .4s; }
-  .err { color:var(--bad); white-space:pre-wrap; }
-  .toast { position:fixed; right:20px; bottom:20px; background:#1f2329; color:#fff; padding:10px 16px; border-radius:6px; }
+  .chips { display:flex; gap:4px; flex-wrap:wrap; margin-top:6px; }
+  .chip { font-size:11px; padding:1px 6px; border-radius:4px; background:#eef0f3; color:var(--muted); }
+  .stats { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin:4px 0 8px; }
+  .stat { background:#f6f7f9; border-radius:8px; padding:6px 8px; font-size:12px; color:var(--muted); }
+  .stat b { display:block; font-size:18px; color:var(--text); }
+  .stat.ok b { color:var(--ok); } .stat.warn b { color:var(--warn); } .stat.bad b { color:var(--bad); }
+  .hint { font-size:12px; color:var(--warn); margin:0 0 6px; }
+
+  /* ---------- 图片画板 ---------- */
+  .world-label { font-size:22px; font-weight:700; color:#8f959e; white-space:nowrap; }
+  .world-label span { font-size:13px; font-weight:normal; margin-left:10px; }
+  .frame { background:rgba(255,255,255,.72); border:1.5px dashed #c9cdd4; border-radius:14px; padding:0 12px 12px; }
+  .frame-head { display:flex; align-items:baseline; gap:8px; height:44px; padding-top:12px; cursor:grab; }
+  .frame-head .fcount { margin-left:auto; font-size:12px; color:var(--ok); font-weight:600; }
+  .cards { display:grid; gap:10px; }
+  .card { position:relative; width:132px; height:132px; border-radius:10px; overflow:hidden; background:#eceef1; border:2px solid transparent; cursor:zoom-in; }
+  .card img { width:100%; height:100%; object-fit:cover; display:block; image-rendering:pixelated; -webkit-user-drag:none; }
+  .card .ph { width:100%; height:100%; background:linear-gradient(100deg,#eceef1 30%,#f7f8fa 50%,#eceef1 70%); background-size:300% 100%; animation:shimmer 1.4s linear infinite; }
+  @keyframes shimmer { to { background-position:-150% 0; } }
+  .card.APPROVED, .card.ARCHIVED { border-color:var(--ok); }
+  .card.REJECTED { border-color:var(--bad); }
+  .card.REJECTED img { opacity:.45; }
+  .card.AUTO_FAILED, .card.ERROR { border-color:var(--warn); }
+  .badge { position:absolute; right:4px; top:4px; font-size:10px; padding:0 5px; border-radius:4px; background:rgba(31,35,41,.7); color:#fff; }
+  .badge.APPROVED, .badge.ARCHIVED, .badge.WAITING_HUMAN { background:var(--ok); }
+  .badge.AUTO_FAILED, .badge.ERROR { background:var(--warn); }
+  .badge.REJECTED { background:var(--bad); }
+  .seq { position:absolute; left:4px; bottom:4px; font-size:10px; padding:0 5px; border-radius:4px; background:rgba(31,35,41,.55); color:#fff; }
+  .issue-ico { position:absolute; left:4px; top:3px; font-size:13px; cursor:help; }
+  .ops { position:absolute; inset:auto 0 0 0; display:flex; justify-content:center; gap:8px; padding:6px; background:linear-gradient(transparent, rgba(0,0,0,.45)); opacity:0; transition:opacity .15s; }
+  .card:hover .ops, .card:focus-within .ops { opacity:1; }
+  .ops button { padding:2px 12px; font-weight:700; border:none; }
+  .ops .ok { background:var(--ok); color:#fff; } .ops .no { background:var(--bad); color:#fff; }
+  @media (hover:none) { .ops { opacity:1; } }
+  .lod .badge, .lod .seq, .lod .ops, .lod .issue-ico { display:none; }
+
+  /* ---------- 悬浮 UI ---------- */
+  .topbar { position:fixed; left:12px; right:12px; top:12px; display:flex; align-items:center; gap:8px; padding:8px 10px; background:rgba(255,255,255,.92);
+    backdrop-filter:blur(8px); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); z-index:10; flex-wrap:wrap; }
+  .brand { font-size:15px; white-space:nowrap; }
+  .topbar select { width:auto; max-width:280px; }
+  .topbar .spacer { flex:1; }
+  .mode { font-size:12px; padding:3px 10px; border-radius:10px; background:#eef0f3; color:var(--muted); }
+  .mode.mock { background:var(--warn-soft); color:var(--warn); }
+  .mode.demo { background:var(--ok-soft); color:var(--ok); font-weight:600; }
+  .pill { font-size:12px; padding:1px 8px; border-radius:10px; background:#eef0f3; color:var(--muted); white-space:nowrap; }
+  .pill.ARCHIVED { background:var(--ok-soft); color:var(--ok); }
+  .pill.FAILED { background:var(--bad-soft); color:var(--bad); }
+  .pill.PLAN_CONFIRMING, .pill.MASTER_CONFIRMING, .pill.HUMAN_REVIEWING { background:var(--warn-soft); color:var(--warn); }
+  .panel { position:fixed; z-index:11; background:#fff; border:1px solid var(--line); border-radius:12px; box-shadow:0 8px 30px rgba(31,35,41,.16); padding:16px; }
+  .panel h3 { margin:0 0 8px; font-size:15px; }
+  .newp { top:70px; left:12px; width:340px; max-width:calc(100vw - 24px); }
+  .newp input { margin-top:8px; }
+  .or { text-align:center; font-size:12px; color:var(--muted); margin:12px 0 0; }
+  .tools { position:fixed; left:12px; bottom:12px; display:flex; background:#fff; border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow); z-index:10; overflow:hidden; }
+  .tools button { border:none; border-radius:0; padding:6px 11px; min-width:36px; }
+  .tools .pct { min-width:58px; font-variant-numeric:tabular-nums; }
+  .minimap { position:fixed; right:12px; bottom:12px; width:200px; height:130px; background:rgba(255,255,255,.92); border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow); z-index:10; cursor:pointer; overflow:hidden; }
+  .minimap svg { width:100%; height:100%; display:block; }
+  .minimap .node { fill:#c9d6ff; } .minimap .frame { fill:#dfe2e6; } .minimap .vpbox { fill:rgba(51,112,255,.08); stroke:var(--primary); stroke-width:1.5; }
+  .welcome { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); width:560px; max-width:calc(100vw - 32px); max-height:calc(100vh - 120px); overflow:auto; z-index:5; }
+  .welcome h2 { margin:0 0 8px; font-size:20px; }
+  .welcome p { color:var(--muted); margin:0 0 14px; }
+  .pipeline { display:flex; gap:4px; align-items:center; flex-wrap:wrap; font-size:12px; margin-bottom:14px; }
+  .pipeline span { padding:2px 8px; border-radius:6px; background:var(--primary-soft); color:var(--primary); }
+  .recent-item { display:flex; justify-content:space-between; gap:8px; padding:6px 8px; border-radius:6px; cursor:pointer; }
+  .recent-item:hover { background:var(--primary-soft); }
+  .modal { position:fixed; inset:0; background:rgba(15,17,21,.5); z-index:20; display:flex; align-items:center; justify-content:center; padding:16px; }
+  .lightbox { position:relative; background:#fff; border-radius:14px; display:flex; max-width:1000px; width:100%; max-height:calc(100vh - 32px); overflow:hidden; }
+  .lightbox > img { width:min(560px, 55vw); aspect-ratio:1; object-fit:contain; background:#eceef1; image-rendering:pixelated; flex-shrink:0; }
+  .lightbox .info { padding:18px; overflow:auto; flex:1; min-width:0; }
+  .lightbox h3 { margin:0 0 6px; }
+  .lightbox .x { position:absolute; right:8px; top:8px; border:none; font-size:20px; padding:0 10px; background:transparent; }
+  .rv { font-size:12px; border-left:3px solid var(--bad); padding:2px 8px; margin-bottom:6px; }
+  .rv.pass { border-color:var(--ok); }
+  .dialog { background:#fff; border-radius:12px; padding:18px; width:420px; max-width:100%; }
+  .dialog h3 { margin:0 0 10px; font-size:15px; }
+  .dialog .end { justify-content:flex-end; margin-top:10px; }
+  button.danger-solid { background:var(--bad); border-color:var(--bad); color:#fff; }
+  .toast { position:fixed; left:50%; bottom:70px; transform:translateX(-50%); background:#1f2329; color:#fff; padding:10px 16px; border-radius:8px; z-index:30; max-width:calc(100vw - 32px); }
+  @media (max-width:760px) {
+    .lightbox { flex-direction:column; overflow:auto; }
+    .lightbox > img { width:100%; }
+    .lightbox .info { overflow:visible; }
+  }
+  @media (max-width:640px) {
+    .minimap, .brand b, .topbar a { display:none; }
+    .topbar select { max-width:150px; }
+    .mode { order:10; width:100%; text-align:center; }
+    .topbar .spacer { display:none; }
+  }
 </style>
 </head>
 <body>
-<div id="app">
-  <header>
-    <h1>🎮 游戏资源图片 Agent</h1>
-    <span class="badge" :class="{mock: sys.mock_ai}" v-if="sys.task_mode">
-      {{ sys.mock_ai ? 'MOCK 模式（未配置百炼 Key）' : '百炼：' + sys.llm_model + ' / ' + sys.vl_model + ' / ' + sys.image_model }} · 任务：{{ sys.task_mode }}
-    </span>
-    <a href="/docs" target="_blank" class="muted" style="margin-left:auto">接口文档</a>
-  </header>
-  <main>
-    <section>
-      <div class="card">
-        <h2>新建项目</h2>
-        <input v-model="newName" placeholder="项目名称，如：第一期英雄动作" style="margin-bottom:8px">
-        <input type="file" ref="file" accept=".docx,.xlsx,.pdf,.txt,.md,.csv" style="margin-bottom:8px">
-        <button class="primary" :disabled="busy" @click="create">上传需求文档</button>
-        <p class="muted">支持 Word / Excel / PDF / 文本。Excel 带"英雄、角色、动作、数量"表头时直接按表读取。</p>
-      </div>
-      <div class="card plist">
-        <h2>项目列表</h2>
-        <div v-for="p in projects" :key="p.id" :class="{active: cur && cur.id===p.id}" @click="open(p.id)">
-          <span>#{{p.id}} {{p.name}}</span><span class="st" :class="p.status">{{ label(p.status) }}</span>
-        </div>
-        <p v-if="!projects.length" class="muted">还没有项目</p>
-      </div>
-    </section>
+<div id="app" v-cloak>
+  <div class="vp" ref="vp" :class="{space, panning: mode==='pan' && moved > 3}" :style="bgStyle" @pointerdown="onDown" @wheel="onWheel">
+    <div class="world" ref="world" :class="{anim, lod: cam.k < 0.4, dragging: mode==='node'}" :style="worldStyle">
+      <template v-if="cur">
+        <svg class="edges">
+          <path v-for="e in edges" :key="e.id" class="edge" :class="e.cls" :d="e.d"></path>
+        </svg>
 
-    <section v-if="cur">
-      <div class="steps">
-        <span v-for="(s,i) in STEPS" :class="{done: stepIndex>i, now: stepIndex===i}">{{ s }}</span>
-      </div>
+        <!-- 流程节点 -->
+        <div v-for="(n, i) in NODES" :key="n.id" class="node" :class="states[i]" :data-box="n.id" :style="boxStyle(boxMap[n.id])">
+          <div class="node-head" :data-drag="n.id"><span class="ico">{{ n.icon }}</span><b>{{ n.title }}</b><span class="nst">{{ STATE_TEXT[states[i]] }}</span></div>
+          <div class="node-desc">{{ n.desc }}</div>
+          <div class="node-body">
+            <p class="err" v-if="states[i]==='failed'">{{ cur.error }}</p>
 
-      <div class="card">
-        <div class="row" style="justify-content:space-between">
-          <h2 style="margin:0">#{{cur.id}} {{cur.name}} <span class="st" :class="cur.status">{{ label(cur.status) }}</span></h2>
-          <span class="muted">源文件：{{cur.source_filename}} · 共 {{cur.total_images}} 张 · 人工驳回轮次 {{cur.review_round}}</span>
-        </div>
-        <p class="err" v-if="cur.error">{{ cur.error }}</p>
-        <p v-if="WORKING.includes(cur.status)" class="muted">⏳ {{ label(cur.status) }}，页面会自动刷新…</p>
-      </div>
+            <template v-if="n.id==='parse'">
+              <div class="muted">源文件：{{ cur.source_filename }}</div>
+              <template v-if="cur.status==='PLAN_CONFIRMING'">
+                <div class="sub">确认任务清单（可直接修改）</div>
+                <ul v-if="cur.parse_issues.length" class="issues"><li v-for="t in cur.parse_issues">{{ t }}</li></ul>
+                <table class="tasks">
+                  <thead><tr><th>英雄</th><th>角色</th><th>动作</th><th style="width:60px">张数</th><th>视角</th><th>补充描述</th><th></th></tr></thead>
+                  <tbody>
+                    <tr v-for="(t, ti) in editTasks">
+                      <td><input v-model="t.hero"></td><td><input v-model="t.role"></td><td><input v-model="t.action"></td>
+                      <td><input type="number" min="1" v-model.number="t.count"></td><td><input v-model="t.view"></td>
+                      <td><input v-model="t.description"></td><td><button class="x" title="删除" @click="editTasks.splice(ti, 1)">✕</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div class="row" style="margin-top:6px">
+                  <button @click="editTasks.push({hero:'', role:'通用', action:'', count:1, view:'', description:''})">＋ 添加任务</button>
+                  <span class="muted">合计 {{ editTotal }} 张<template v-if="sys.total_images_limit">（演示上限 {{ sys.total_images_limit }}）</template></span>
+                </div>
+                <div class="sub">选择画风</div>
+                <div class="styles">
+                  <div v-for="s in styles" class="style" :class="{sel: styleKey===s.key}" @click="styleKey=s.key"><b>{{ s.name }}</b><span>{{ s.description }}</span></div>
+                </div>
+                <input v-model="styleNotes" placeholder="风格补充（可选），如：冷色调、暗黑奇幻">
+                <button class="primary block" :disabled="busy || !styleKey" @click="confirmPlan">确认清单并生成风格母版 →</button>
+              </template>
+              <div v-else-if="states[i]==='running'" class="spin" style="margin-top:6px">正在解析文档、拆解任务…</div>
+              <template v-else-if="cur.tasks.length">
+                <div class="kv"><b>{{ cur.tasks.length }}</b> 项任务 · <b>{{ cur.total_images }}</b> 张</div>
+                <ul class="mini-list">
+                  <li v-for="t in cur.tasks.slice(0, 6)">{{ t.hero }}（{{ t.role }}）· {{ t.action }} <span class="muted">×{{ t.count }}</span></li>
+                  <li v-if="cur.tasks.length > 6" class="muted">…还有 {{ cur.tasks.length - 6 }} 项</li>
+                </ul>
+              </template>
+            </template>
 
-      <!-- 确认任务清单 + 选风格 -->
-      <template v-if="cur.status==='PLAN_CONFIRMING'">
-        <div class="card">
-          <h2>① 确认任务清单</h2>
-          <ul v-if="cur.parse_issues.length" class="muted"><li v-for="i in cur.parse_issues">{{ i }}</li></ul>
-          <table>
-            <tr><th>英雄</th><th>角色</th><th>动作</th><th style="width:80px">张数</th><th>视角</th><th>补充描述</th><th></th></tr>
-            <tr v-for="(t,i) in editTasks">
-              <td><input v-model="t.hero"></td><td><input v-model="t.role"></td><td><input v-model="t.action"></td>
-              <td><input type="number" min="1" v-model.number="t.count"></td><td><input v-model="t.view"></td>
-              <td><input v-model="t.description"></td><td><button class="danger" @click="editTasks.splice(i,1)">删</button></td>
-            </tr>
-          </table>
-          <div class="row" style="margin-top:8px"><button @click="editTasks.push({hero:'',role:'通用',action:'',count:1,view:'',description:''})">+ 添加任务</button>
-            <span class="muted">合计 {{ editTasks.reduce((a,t)=>a+(+t.count||0),0) }} 张</span></div>
-        </div>
-        <div class="card">
-          <h2>② 选择风格母版</h2>
-          <div class="styles">
-            <div v-for="s in styles" class="style" :class="{sel: styleKey===s.key}" @click="styleKey=s.key">
-              <b>{{s.name}}</b><div class="muted">{{s.description}}</div>
-            </div>
-          </div>
-          <input v-model="styleNotes" placeholder="风格补充（可选），如：冷色调、暗黑奇幻" style="margin-top:8px">
-          <div style="margin-top:12px"><button class="primary" :disabled="busy||!styleKey" @click="confirmPlan">确认并生成风格母版</button></div>
-        </div>
-      </template>
-
-      <!-- 母版确认 -->
-      <div class="card master" v-if="masters.length && ['MASTER_CONFIRMING','MASTER_GENERATING'].includes(cur.status)">
-        <h2>③ 风格母版 v{{masters[0].version}}</h2>
-        <img :src="masters[0].image_url">
-        <p class="muted">Seed：{{masters[0].seed}}<br>提示词：{{masters[0].prompt}}</p>
-        <div class="row" v-if="cur.status==='MASTER_CONFIRMING'">
-          <button class="primary" :disabled="busy" @click="confirmMaster(true)">风格满意，锁定并批量生图</button>
-          <input v-model="masterFeedback" placeholder="不满意？写下修改意见" style="flex:1;min-width:200px">
-          <button :disabled="busy" @click="confirmMaster(false)">按意见重新生成</button>
-        </div>
-        <details v-if="masters.length>1"><summary class="muted">历史版本（{{masters.length-1}}）</summary>
-          <div class="row"><div v-for="m in masters.slice(1)" style="width:140px"><img :src="m.image_url" style="width:140px"><div class="muted">v{{m.version}} {{m.feedback}}</div></div></div>
-        </details>
-      </div>
-
-      <!-- 生成进度 / 人工审核 / 资源库 -->
-      <div class="card" v-if="assets.length">
-        <div class="row" style="justify-content:space-between">
-          <h2 style="margin:0">{{ cur.status==='ARCHIVED' ? '⑥ 已入库资源' : cur.status==='HUMAN_REVIEWING' ? '⑤ 人工审核' : '④ 批量生成 + 自动审查' }}</h2>
-          <div class="row" v-if="cur.status==='HUMAN_REVIEWING'">
-            <button :disabled="busy" @click="approveAllPassed">一键通过全部自动审查合格的图</button>
-            <button class="primary" :disabled="busy" @click="submitReview">提交本轮审核（待审 {{ undecided }}）</button>
-          </div>
-        </div>
-        <div v-if="cur.status==='GENERATING'" style="margin:8px 0">
-          <div class="bar"><i :style="{width: doneRatio+'%'}"></i></div>
-          <span class="muted">已完成 {{ doneCount }} / {{ assets.length }}</span>
-        </div>
-        <div class="grid" style="margin-top:12px">
-          <div class="asset" v-for="a in assets" :key="a.id">
-            <img v-if="a.image_url" :src="a.image_url + '?v=' + a.version" loading="lazy">
-            <div class="body">
-              <div class="row" style="justify-content:space-between"><b>{{a.hero}}·{{a.action}} #{{a.seq}}</b><span class="st" :class="a.status">{{ label(a.status) }}</span></div>
-              <div class="muted">{{a.frame_desc}} · v{{a.version}}</div>
-              <div v-if="a.last_issues.length" class="muted" style="color:var(--warn)">⚠ {{ a.last_issues.join('；') }}</div>
-              <div v-if="a.error" class="err">{{a.error}}</div>
-              <div v-if="a.archive_key" class="muted">📁 {{a.archive_key}}</div>
-              <template v-if="cur.status==='HUMAN_REVIEWING' && ['WAITING_HUMAN','AUTO_FAILED','ERROR','APPROVED','REJECTED'].includes(a.status)">
-                <input v-model="comments[a.id]" placeholder="驳回批注" style="margin:6px 0">
-                <div class="row">
-                  <button :disabled="busy || a.status==='ERROR'" @click="review(a,true)">✓ 通过</button>
-                  <button class="danger" :disabled="busy" @click="review(a,false)">✗ 驳回</button>
+            <template v-else-if="n.id==='master'">
+              <template v-if="masters.length">
+                <img class="master-img" :src="masters[0].image_url" draggable="false" @click="moved < 6 && openMaster(masters[0])">
+                <div class="muted" style="margin-top:6px">v{{ masters[0].version }} · {{ styleName(masters[0].style_key) }} · seed {{ masters[0].seed }}</div>
+                <details class="no-pan"><summary>查看提示词</summary><div class="prompt scrollable">{{ masters[0].prompt }}</div></details>
+                <template v-if="cur.status==='MASTER_CONFIRMING'">
+                  <button class="primary block" :disabled="busy" @click="confirmMaster(true)">风格满意，锁定并批量生图 →</button>
+                  <div class="row" style="margin-top:8px;flex-wrap:nowrap">
+                    <input v-model="masterFeedback" placeholder="不满意？写下修改意见">
+                    <button :disabled="busy" @click="confirmMaster(false)">重新生成</button>
+                  </div>
+                </template>
+                <div v-if="masters.length > 1" class="history">
+                  <div v-for="m in masters.slice(1)" class="hist" :title="m.feedback || ''" @click="moved < 6 && openMaster(m)"><img :src="m.image_url" draggable="false">v{{ m.version }}</div>
                 </div>
               </template>
+              <div v-else-if="states[i]==='running'" class="spin" style="margin-top:6px">正在扩写提示词并生成母版…</div>
+              <p v-else class="muted">确认清单后先生成一张风格母版，锁定整套图的画风。</p>
+            </template>
+
+            <template v-else-if="n.id==='generate'">
+              <template v-if="assets.length">
+                <div class="kv"><b>{{ doneCount }}</b> / {{ assets.length }} 张</div>
+                <div class="bar"><i :style="{width: doneRatio + '%'}"></i></div>
+                <div class="chips"><span v-for="(c, s) in cur.progress" class="chip">{{ label(s) }} {{ c }}</span></div>
+              </template>
+              <p v-else class="muted">风格锁定后，按"固定前缀 + 固定 seed + 角色设定卡"批量出图。</p>
+            </template>
+
+            <template v-else-if="n.id==='review'">
+              <template v-if="assets.length">
+                <div class="stats">
+                  <div class="stat ok"><b>{{ countOf('WAITING_HUMAN') }}</b>自动审查通过</div>
+                  <div class="stat warn"><b>{{ countOf('AUTO_FAILED', 'ERROR') }}</b>未通过 / 失败</div>
+                  <div class="stat ok"><b>{{ countOf('APPROVED', 'ARCHIVED') }}</b>人工通过</div>
+                  <div class="stat bad"><b>{{ countOf('REJECTED') }}</b>人工驳回</div>
+                </div>
+                <div class="muted">人工驳回轮次：{{ cur.review_round }}</div>
+                <template v-if="cur.status==='HUMAN_REVIEWING'">
+                  <p class="hint" style="margin-top:6px">在下方画板里悬停图片即可通过 / 驳回</p>
+                  <button class="block" :disabled="busy" @click="approveAllPassed">一键通过自动审查合格的图（{{ countOf('WAITING_HUMAN') }}）</button>
+                  <button class="primary block" :disabled="busy" @click="submitReview">提交本轮审核（待审 {{ undecided }}）</button>
+                </template>
+              </template>
+              <p v-else class="muted">qwen-vl 逐张检查内容和画风，不合格自动带意见重画；之后交给人工终审。</p>
+            </template>
+
+            <template v-else-if="n.id==='archive'">
+              <div v-if="cur.status==='ARCHIVING'" class="spin" style="margin-top:6px">正在归档…</div>
+              <template v-else-if="cur.status==='ARCHIVED'">
+                <div class="kv"><b>{{ assets.length }}</b> 张已入库</div>
+                <div class="muted">路径：{{ libPath }}</div>
+              </template>
+              <p v-else class="muted">全部通过后按 英雄 / 动作 / 帧 归档到资源库。</p>
+            </template>
+          </div>
+        </div>
+
+        <!-- 图片画板 -->
+        <div v-if="frames.length" class="world-label" :style="{left: '0px', top: (framesTop - 64) + 'px'}">🖼 图片画板<span>按 英雄 · 动作 分组 · 悬停图片可审核，点击看详情</span></div>
+        <div v-for="b in frameBoxes" :key="b.id" class="frame" :data-box="b.id" :style="boxStyle(b)">
+          <div class="frame-head" :data-drag="b.id"><b>{{ b.frame.hero }} · {{ b.frame.action }}</b><span class="muted">{{ b.frame.role }}</span><span class="fcount">{{ b.frame.ok }}/{{ b.frame.items.length }}</span></div>
+          <div class="cards" :style="{gridTemplateColumns: 'repeat(' + b.cols + ', 132px)'}">
+            <div v-for="a in b.frame.items" :key="a.id" class="card" :class="a.status" @click="moved < 6 && openAsset(a)">
+              <img v-if="a.image_url" :src="a.image_url + '?v=' + a.version" loading="lazy" draggable="false">
+              <div v-else class="ph"></div>
+              <span class="badge" :class="a.status">{{ SHORT[a.status] || a.status }}</span>
+              <span class="seq">#{{ a.seq }} · v{{ a.version }}</span>
+              <span v-if="a.last_issues.length" class="issue-ico" :title="a.last_issues.join('；')">⚠️</span>
+              <div class="ops" v-if="canReview(a)">
+                <button class="ok" title="通过" :disabled="busy || a.status==='ERROR'" @click.stop="review(a, true)">✓</button>
+                <button class="no" title="驳回" :disabled="busy" @click.stop="askReject(a)">✗</button>
+              </div>
             </div>
           </div>
         </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- 顶部悬浮栏 -->
+  <div class="topbar">
+    <span class="brand">🎮 <b>游戏资源图片 Agent</b></span>
+    <select v-model="selId" @change="selId && open(selId)">
+      <option :value="null">选择项目…</option>
+      <option v-for="p in projects" :key="p.id" :value="p.id">#{{ p.id }} {{ p.name }} · {{ label(p.status) }}</option>
+    </select>
+    <button class="primary" @click="showNew = !showNew">＋ 新建</button>
+    <span v-if="cur" class="pill" :class="cur.status">{{ label(cur.status) }}</span>
+    <span class="spacer"></span>
+    <span class="mode" :class="{demo: sys.demo_mode, mock: sys.mock_ai && !sys.demo_mode}" v-if="sys.task_mode">{{ modeText }}</span>
+    <a href="/docs" target="_blank">接口文档</a>
+  </div>
+
+  <div class="panel newp" v-if="showNew">
+    <h3>新建项目</h3>
+    <button class="primary block" :disabled="busy" @click="useExample">⚡ 使用示例需求（3 英雄 × 2 动作 × 4 帧）</button>
+    <div class="or">或上传自己的需求文档</div>
+    <input v-model="newName" placeholder="项目名称，如：第一期英雄动作">
+    <input type="file" ref="file" accept=".docx,.xlsx,.pdf,.txt,.md,.csv">
+    <button class="block" :disabled="busy" @click="create">上传并开始拆解</button>
+    <p class="muted" style="margin:8px 0 0">支持 Word / Excel / PDF / 文本，Excel 带"英雄、角色、动作、数量"表头时直接按表读取。<template v-if="sys.demo_mode">演示站文件上限 {{ sys.upload_limit_mb }}MB，每个项目最多 {{ sys.total_images_limit }} 张。</template></p>
+  </div>
+
+  <!-- 欢迎页 -->
+  <div class="panel welcome" v-if="loaded && !cur">
+    <h2>把策划需求文档变成一套画风统一的游戏角色图</h2>
+    <div class="pipeline"><span>📄 需求拆解</span>→<span>🎨 风格母版</span>→<span>🖼️ 批量生图</span>→<span>🔍 自动 + 人工审查</span>→<span>📦 入库</span></div>
+    <p>五个 Agent 节点由 LangGraph 编排，需要人确认的地方会暂停等你操作。整个流程展开在一张无限画布上：拖动空白处平移，滚轮缩放。</p>
+    <p v-if="sys.demo_mode" style="color:var(--ok)">这是在线演示，不调用任何付费模型：示例需求展示的是预先画好的示例图，上传其他文档时由本地程序现画像素图。</p>
+    <div class="row">
+      <button class="primary" :disabled="busy" @click="useExample">⚡ 用示例需求跑一遍</button>
+      <button @click="showNew = true">上传自己的文档</button>
+    </div>
+    <template v-if="projects.length">
+      <div class="sub">最近的项目</div>
+      <div v-for="p in projects.slice(0, 6)" :key="p.id" class="recent-item" @click="open(p.id)">
+        <span>#{{ p.id }} {{ p.name }}</span><span class="pill" :class="p.status">{{ label(p.status) }}</span>
       </div>
-    </section>
-    <section v-else class="card"><p class="muted">← 新建或选择一个项目</p></section>
-  </main>
+    </template>
+  </div>
+
+  <!-- 缩放工具条 + 小地图 -->
+  <div class="tools" v-if="cur">
+    <button title="缩小（-）" @click="zoomBy(1 / 1.2)">−</button>
+    <button class="pct" title="恢复 100%" @click="zoomBy(1 / cam.k)">{{ Math.round(cam.k * 100) }}%</button>
+    <button title="放大（+）" @click="zoomBy(1.2)">＋</button>
+    <button title="适应全局（0）" @click="fit(true)">⤢</button>
+    <button title="恢复自动布局" @click="resetLayout">↺</button>
+  </div>
+  <div class="minimap" v-if="cur" ref="mini" @pointerdown="miniJump">
+    <svg :viewBox="'0 0 200 130'">
+      <rect v-for="b in boxes" :key="b.id" :class="b.kind" rx="2" :x="mini.ox + (b.x - mini.bx) * mini.s" :y="mini.oy + (b.y - mini.by) * mini.s" :width="Math.max(2, b.w * mini.s)" :height="Math.max(2, b.h * mini.s)"></rect>
+      <rect class="vpbox" :x="mini.ox + (view.x - mini.bx) * mini.s" :y="mini.oy + (view.y - mini.by) * mini.s" :width="view.w * mini.s" :height="view.h * mini.s"></rect>
+    </svg>
+  </div>
+
+  <!-- 详情 -->
+  <div class="modal" v-if="detail" @click.self="detail = null">
+    <div class="lightbox">
+      <img :src="detail.image">
+      <div class="info">
+        <h3>{{ detail.title }}</h3>
+        <div class="muted" v-for="l in detail.meta">{{ l }}</div>
+        <div class="sub">提示词</div>
+        <div class="prompt" style="max-height:180px">{{ detail.prompt }}</div>
+        <template v-if="detail.reviews">
+          <div class="sub">审查记录</div>
+          <div v-for="r in detail.reviews" class="rv" :class="{pass: r.passed}">
+            {{ r.kind === 'human' ? '人工' : '自动' }} · v{{ r.asset_version }} · {{ r.passed ? '通过' : '不通过' }}
+            <span v-if="r.content_score != null" class="muted">内容 {{ r.content_score }} / 画风 {{ r.style_score }}</span>
+            <div v-if="r.issues.length" class="muted">{{ r.issues.join('；') }}</div>
+          </div>
+          <p v-if="!detail.reviews.length" class="muted">暂无</p>
+        </template>
+        <div class="row" style="margin-top:12px" v-if="detail.asset && canReview(detail.asset)">
+          <button class="primary" :disabled="busy || detail.asset.status==='ERROR'" @click="review(detail.asset, true)">✓ 通过</button>
+          <button class="danger-solid" :disabled="busy" @click="askReject(detail.asset)">✗ 驳回</button>
+        </div>
+      </div>
+      <button class="x" title="关闭（Esc）" @click="detail = null">×</button>
+    </div>
+  </div>
+
+  <div class="modal" v-if="rejecting" @click.self="rejecting = null">
+    <div class="dialog">
+      <h3>驳回 {{ rejecting.hero }} · {{ rejecting.action }} #{{ rejecting.seq }}</h3>
+      <textarea v-model="rejectText" rows="3" ref="rej" placeholder="写下修改意见，会回流给提示词扩写 Agent，例如：剑太短、披风颜色不对"></textarea>
+      <div class="row end">
+        <button @click="rejecting = null">取消</button>
+        <button class="danger-solid" :disabled="busy" @click="doReject">确认驳回</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" v-if="toast">{{ toast }}</div>
 </div>
 
 <script>
-const { createApp } = Vue;
+const { createApp, nextTick } = Vue;
 const LABELS = { CREATED:'已创建', PARSING:'需求拆解中', PLAN_CONFIRMING:'待确认清单', MASTER_GENERATING:'母版生成中', MASTER_CONFIRMING:'待确认母版',
   GENERATING:'批量生成中', HUMAN_REVIEWING:'待人工审核', ARCHIVING:'归档中', ARCHIVED:'已入库', FAILED:'失败',
   PENDING:'排队', AUTO_REVIEWING:'自动审查中', WAITING_HUMAN:'自动审查通过', AUTO_FAILED:'自动审查未通过', APPROVED:'已通过', REJECTED:'已驳回', ERROR:'生成失败' };
-const STEP_OF = { CREATED:0, PARSING:0, PLAN_CONFIRMING:1, MASTER_GENERATING:2, MASTER_CONFIRMING:2, GENERATING:3, HUMAN_REVIEWING:4, ARCHIVING:5, ARCHIVED:6, FAILED:-1 };
+const SHORT = { PENDING:'排队', GENERATING:'生成中', AUTO_REVIEWING:'审查中', WAITING_HUMAN:'待审', AUTO_FAILED:'未达标', APPROVED:'通过', REJECTED:'驳回', ARCHIVED:'入库', ERROR:'失败' };
+const NODES = [
+  { id:'parse', icon:'📄', title:'需求拆解', desc:'表格直读优先，自由文本交给 qwen-plus 输出 JSON' },
+  { id:'master', icon:'🎨', title:'风格母版', desc:'提示词扩写 Agent + 万相文生图，人工确认后锁定画风' },
+  { id:'generate', icon:'🖼️', title:'批量生图', desc:'固定风格前缀 + 固定 seed + 角色设定卡' },
+  { id:'review', icon:'🔍', title:'审查', desc:'qwen-vl 自动审查，不合格带意见重画，再人工终审' },
+  { id:'archive', icon:'📦', title:'入库', desc:'按 英雄 / 动作 / 帧 归档到资源库' },
+];
+// 项目状态 -> [活动节点序号, 节点状态]
+const ACTIVE = { CREATED:[0,'running'], PARSING:[0,'running'], PLAN_CONFIRMING:[0,'waiting'], MASTER_GENERATING:[1,'running'], MASTER_CONFIRMING:[1,'waiting'],
+  GENERATING:[2,'running'], HUMAN_REVIEWING:[3,'waiting'], ARCHIVING:[4,'running'], ARCHIVED:[5,'done'] };
+const STATE_TEXT = { idle:'未开始', running:'运行中', waiting:'等你确认', done:'完成 ✓', failed:'失败' };
+const WORKING = ['CREATED','PARSING','MASTER_GENERATING','GENERATING','ARCHIVING'];
+const DECIDABLE = ['WAITING_HUMAN','AUTO_FAILED','ERROR','APPROVED','REJECTED'];
+const CARD = 132, GAP = 10, PAD = 12, HEAD = 44, NODE_GAP = 90, ROW_MAX = 1900;
+const MIN_K = 0.1, MAX_K = 3;
 
 async function api(path, opts = {}) {
   const r = await fetch('/api' + path, opts);
@@ -188,47 +432,189 @@ async function api(path, opts = {}) {
   return data;
 }
 const json = (method, body) => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+// 节点位置存在浏览器本地，存不了（隐私模式等）就用自动布局
+const store = {
+  get(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
 createApp({
   data: () => ({ sys:{}, projects:[], styles:[], cur:null, masters:[], assets:[], editTasks:[], styleKey:'pixel', styleNotes:'',
-    masterFeedback:'', comments:{}, newName:'', busy:false, toast:'', timer:null,
-    STEPS:['需求拆解','确认清单','风格母版','批量生成','人工审核','已入库'],
-    WORKING:['CREATED','PARSING','MASTER_GENERATING','GENERATING','ARCHIVING'] }),
+    masterFeedback:'', newName:'', busy:false, toast:'', loaded:false, selId:null, showNew:false,
+    detail:null, rejecting:null, rejectText:'',
+    expectUntil:0, cam:{ x:40, y:90, k:1 }, vw:1280, vh:800, anim:false, space:false, mode:null, moved:0, drag:null, lastInteract:0,
+    pos:{}, sizes:{}, NODES, STATE_TEXT, SHORT }),
   computed: {
-    stepIndex() { return STEP_OF[this.cur?.status] ?? 0; },
+    editTotal() { return this.editTasks.reduce((a, t) => a + (+t.count || 0), 0); },
     doneCount() { return this.assets.filter(a => !['PENDING','GENERATING','AUTO_REVIEWING'].includes(a.status)).length; },
     doneRatio() { return this.assets.length ? Math.round(this.doneCount * 100 / this.assets.length) : 0; },
-    undecided() { return this.assets.filter(a => ['WAITING_HUMAN','AUTO_FAILED','ERROR'].includes(a.status)).length; },
+    undecided() { return this.countOf('WAITING_HUMAN', 'AUTO_FAILED', 'ERROR'); },
+    libPath() { const k = this.assets[0]?.archive_key; return k ? k.split('/').slice(0, 2).join('/') + '/…' : '-'; },
+    modeText() {
+      const s = this.sys;
+      if (s.demo_mode) return '在线演示 · 不调用任何付费模型';
+      if (s.mock_ai) return 'MOCK 模式（未配置百炼 Key）· 任务：' + s.task_mode;
+      return `百炼：${s.llm_model} / ${s.vl_model} / ${s.image_model} · 任务：${s.task_mode}`;
+    },
+    states() {
+      const s = this.cur?.status;
+      return NODES.map((_, i) => {
+        if (!s) return 'idle';
+        if (s === 'FAILED') {
+          const f = this.assets.length ? 2 : this.masters.length ? 1 : 0;
+          return i < f ? 'done' : i === f ? 'failed' : 'idle';
+        }
+        const [a, kind] = ACTIVE[s];
+        if (i < a) return 'done';
+        if (i === a) return kind;
+        return s === 'GENERATING' && i === 3 ? 'running' : 'idle';
+      });
+    },
+    frames() {
+      const m = new Map();
+      for (const a of this.assets) {
+        const k = a.hero + '·' + a.action;
+        if (!m.has(k)) m.set(k, { key:k, hero:a.hero, action:a.action, role:a.role, items:[] });
+        m.get(k).items.push(a);
+      }
+      return [...m.values()].map(f => ({ ...f, ok: f.items.filter(a => ['APPROVED','ARCHIVED'].includes(a.status)).length }));
+    },
+    nodeBoxes() {
+      let x = 0;
+      return NODES.map((n, i) => {
+        const w = this.nodeWidth(n.id, this.states[i]), p = this.pos[n.id];
+        const b = { id:n.id, kind:'node', x: p ? p.x : x, y: p ? p.y : 0, w, h: this.sizes[n.id]?.h || 200 };
+        x += w + NODE_GAP;
+        return b;
+      });
+    },
+    // 画板放在节点下方，按默认位置的节点高度计算，拖动节点不会让画板跟着跳
+    framesTop() { return Math.max(...NODES.map(n => this.sizes[n.id]?.h || 200)) + 150; },
+    frameBoxes() {
+      let fx = 0, fy = this.framesTop, rowH = 0;
+      return this.frames.map(f => {
+        const cols = Math.min(4, f.items.length), rows = Math.ceil(f.items.length / cols);
+        const w = cols * CARD + (cols - 1) * GAP + 2 * PAD, h = HEAD + rows * (CARD + GAP) - GAP + PAD;
+        if (fx > 0 && fx + w > ROW_MAX) { fx = 0; fy += rowH + 50; rowH = 0; }
+        const id = 'f:' + f.key, p = this.pos[id];
+        const b = { id, kind:'frame', frame:f, cols, x: p ? p.x : fx, y: p ? p.y : fy, w, h: this.sizes[id]?.h || h };
+        fx += w + 50; rowH = Math.max(rowH, h);
+        return b;
+      });
+    },
+    boxes() { return [...this.nodeBoxes, ...this.frameBoxes]; },
+    boxMap() { return Object.fromEntries(this.boxes.map(b => [b.id, b])); },
+    edges() {
+      const out = [];
+      for (let i = 0; i < NODES.length - 1; i++) {
+        const a = this.boxMap[NODES[i].id], b = this.boxMap[NODES[i + 1].id];
+        const st = this.states[i + 1];
+        out.push({ id:'e' + i, d: this.curve(a.x + a.w, a.y + 28, b.x, b.y + 28), cls: ['running','waiting'].includes(st) ? 'flow' : st === 'done' ? 'done' : '' });
+      }
+      if (this.frames.length) {
+        const g = this.boxMap.generate;
+        const x1 = g.x + g.w / 2, y1 = g.y + g.h, x2 = 110, y2 = this.framesTop - 70;
+        out.push({ id:'out', cls:'out', d:`M${x1},${y1} C${x1},${y1 + 80} ${x2},${y2 - 80} ${x2},${y2}` });
+      }
+      return out;
+    },
+    worldStyle() { return { transform: `translate(${this.cam.x}px, ${this.cam.y}px) scale(${this.cam.k})` }; },
+    bgStyle() {
+      const s = 24 * this.cam.k * (this.cam.k < 0.35 ? 4 : 1);
+      return { backgroundSize: `${s}px ${s}px`, backgroundPosition: `${this.cam.x}px ${this.cam.y}px` };
+    },
+    view() { const k = this.cam.k; return { x: -this.cam.x / k, y: -this.cam.y / k, w: this.vw / k, h: this.vh / k }; },
+    mini() {
+      const all = [...this.boxes, this.view];
+      const bx = Math.min(...all.map(b => b.x)), by = Math.min(...all.map(b => b.y));
+      const bw = Math.max(...all.map(b => b.x + b.w)) - bx, bh = Math.max(...all.map(b => b.y + b.h)) - by;
+      const s = Math.min(190 / bw, 120 / bh);
+      return { bx, by, s, ox: (200 - bw * s) / 2, oy: (130 - bh * s) / 2 };
+    },
   },
   async mounted() {
-    [this.sys, this.styles] = await Promise.all([api('/system'), api('/styles')]);
-    await this.loadProjects();
-    this.timer = setInterval(() => this.poll(), 2500);
+    this.ro = new ResizeObserver(entries => {
+      for (const e of entries) {
+        const el = e.target, id = el.dataset.box;
+        if (!id) { this.vw = el.clientWidth; this.vh = el.clientHeight; continue; }
+        const o = this.sizes[id];
+        if (!o || o.h !== el.offsetHeight || o.w !== el.offsetWidth) this.sizes[id] = { w: el.offsetWidth, h: el.offsetHeight };
+      }
+    });
+    this.ro.observe(this.$refs.vp);
+    window.addEventListener('pointermove', this.onMove);
+    window.addEventListener('pointerup', this.onUp);
+    window.addEventListener('pointercancel', this.onUp);
+    window.addEventListener('keydown', this.onKey);
+    window.addEventListener('keyup', e => { if (e.code === 'Space') this.space = false; });
+    this.pointers = new Map();
+    try {
+      [this.sys, this.styles] = await Promise.all([api('/system'), api('/styles')]);
+      await this.loadProjects();
+      const last = store.get('gaa-last-project');
+      if (last && this.projects.some(p => p.id === last)) await this.open(last);
+    } catch (e) { this.notify('❌ ' + e.message); }
+    this.loaded = true;
+    setInterval(() => this.poll(), 2500);
+  },
+  updated() {
+    // 新出现的节点 / 画板加入尺寸监听
+    this.$refs.world?.querySelectorAll('[data-box]').forEach(el => { if (!el._observed) { this.ro.observe(el); el._observed = true; } });
   },
   methods: {
     label: s => LABELS[s] || s,
-    notify(msg) { this.toast = msg; setTimeout(() => this.toast = '', 3000); },
-    async run(fn) { this.busy = true; try { await fn(); } catch (e) { this.notify('❌ ' + e.message); } finally { this.busy = false; } },
+    styleName(k) { return this.styles.find(s => s.key === k)?.name || k; },
+    countOf(...ss) { return this.assets.filter(a => ss.includes(a.status)).length; },
+    canReview(a) { return this.cur?.status === 'HUMAN_REVIEWING' && DECIDABLE.includes(a.status); },
+    nodeWidth(id, st) {
+      if (id === 'parse') return st === 'waiting' ? 720 : 330;
+      if (id === 'master') return 380;
+      return 310;
+    },
+    boxStyle(b) { return { left: b.x + 'px', top: b.y + 'px', width: b.w + 'px' }; },
+    curve(x1, y1, x2, y2) { const dx = Math.max(40, Math.abs(x2 - x1) / 2); return `M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}`; },
+    notify(msg) { this.toast = msg; clearTimeout(this._toast); this._toast = setTimeout(() => this.toast = '', 3000); },
+    async run(fn) { this.busy = true; this.expectUntil = Date.now() + 15000; try { await fn(); } catch (e) { this.notify('❌ ' + e.message); } finally { this.busy = false; } },
+
+    // ---------- 数据 ----------
     async loadProjects() { this.projects = await api('/projects'); },
     async open(id) {
-      const prev = this.cur?.status;
-      this.cur = await api('/projects/' + id);
-      if (this.cur.status === 'PLAN_CONFIRMING' && (prev !== 'PLAN_CONFIRMING' || !this.editTasks.length))
-        this.editTasks = this.cur.tasks.map(({ id, ...t }) => ({ ...t }));
-      this.masters = await api(`/projects/${id}/masters`);
-      this.assets = this.cur.status === 'ARCHIVED' ? await api(`/projects/${id}/library`) : await api(`/projects/${id}/assets`);
+      const switched = this.cur?.id !== id, prev = switched ? null : this.cur.status;
+      const cur = await api('/projects/' + id);
+      const [masters, assets] = await Promise.all([
+        api(`/projects/${id}/masters`),
+        api(cur.status === 'ARCHIVED' ? `/projects/${id}/library` : `/projects/${id}/assets`),
+      ]);
+      if (cur.status === 'PLAN_CONFIRMING' && (prev !== 'PLAN_CONFIRMING' || !this.editTasks.length))
+        this.editTasks = cur.tasks.map(({ id, ...t }) => ({ ...t }));
+      if (switched) { this.pos = store.get('gaa-layout-' + id) || {}; store.set('gaa-last-project', id); }
+      Object.assign(this, { cur, masters, assets, selId: id, showNew: false });
+      if (switched) this.afterRender(() => this.vw < 640 ? this.follow() : this.fit(false));
+      else if (prev !== cur.status && Date.now() - this.lastInteract > 5000) this.afterRender(() => this.follow());
     },
     async poll() {
-      if (!this.cur) return;
-      if (this.WORKING.includes(this.cur.status)) { await this.open(this.cur.id); this.loadProjects(); }
+      // 后台在跑，或者刚提交过操作（工作流是异步推进的，状态可能还没变）时轮询
+      if (!this.cur || this._polling || !(WORKING.includes(this.cur.status) || Date.now() < this.expectUntil)) return;
+      this._polling = true;
+      try { await this.open(this.cur.id); await this.loadProjects(); } catch {} finally { this._polling = false; }
+    },
+    async submitProject(name, file) {
+      const fd = new FormData(); fd.append('name', name); fd.append('file', file);
+      const p = await api('/projects', { method: 'POST', body: fd });
+      await this.loadProjects(); await this.open(p.id);
     },
     create() { this.run(async () => {
       const f = this.$refs.file.files[0];
       if (!this.newName || !f) throw new Error('请填写项目名称并选择文件');
-      const fd = new FormData(); fd.append('name', this.newName); fd.append('file', f);
-      const p = await api('/projects', { method: 'POST', body: fd });
-      this.newName = ''; this.$refs.file.value = '';
-      await this.loadProjects(); await this.open(p.id);
+      await this.submitProject(this.newName, f);
+      this.newName = '';
+    }); },
+    useExample() { this.run(async () => {
+      const r = await fetch('/static/examples/demo_requirement.xlsx');
+      if (!r.ok) throw new Error('示例文件加载失败');
+      const blob = await r.blob();
+      await this.submitProject('示例：亚瑟 / 梅林 / 罗宾 动作帧', new File([blob], 'demo_requirement.xlsx', { type: blob.type }));
     }); },
     confirmPlan() { this.run(async () => {
       const r = await api(`/projects/${this.cur.id}/plan`, json('POST', { style_key: this.styleKey, style_notes: this.styleNotes || null, tasks: this.editTasks }));
@@ -238,9 +624,18 @@ createApp({
       const r = await api(`/projects/${this.cur.id}/master`, json('POST', { approved, feedback: this.masterFeedback || null }));
       this.masterFeedback = ''; this.notify(r.message); await this.open(this.cur.id);
     }); },
-    review(a, approved) { this.run(async () => {
-      Object.assign(a, await api(`/assets/${a.id}/review`, json('POST', { approved, comment: this.comments[a.id] || null })));
+    review(a, approved, comment = null) { this.run(async () => {
+      Object.assign(a, await api(`/assets/${a.id}/review`, json('POST', { approved, comment })));
+      const same = this.assets.find(x => x.id === a.id);
+      if (same && same !== a) Object.assign(same, a);
+      if (this.detail?.asset?.id === a.id) this.detail = null;
     }); },
+    askReject(a) { this.rejecting = a; this.rejectText = ''; nextTick(() => this.$refs.rej?.focus()); },
+    doReject() {
+      if (!this.rejectText.trim()) return this.notify('请填写驳回意见');
+      const a = this.rejecting; this.rejecting = null;
+      this.review(a, false, this.rejectText.trim());
+    },
     approveAllPassed() { this.run(async () => {
       const ids = this.assets.filter(a => a.status === 'WAITING_HUMAN').map(a => a.id);
       if (!ids.length) throw new Error('没有自动审查合格的待审图片');
@@ -251,6 +646,118 @@ createApp({
       const r = await api(`/projects/${this.cur.id}/review/submit`, { method: 'POST' });
       this.notify(r.message); await this.open(this.cur.id);
     }); },
+    openMaster(m) {
+      this.detail = { title: `风格母版 v${m.version}`, image: m.image_url, prompt: m.prompt,
+        meta: [`画风：${this.styleName(m.style_key)} · seed ${m.seed}`, m.feedback ? `修改意见：${m.feedback}` : ''].filter(Boolean) };
+    },
+    async openAsset(a) {
+      this.detail = { asset: a, title: `${a.hero}（${a.role}）· ${a.action} #${a.seq}`, image: a.image_url && a.image_url + '?v=' + a.version, prompt: a.prompt, reviews: null,
+        meta: [`${a.frame_desc} · v${a.version} · seed ${a.seed} · ${this.label(a.status)}`, a.human_feedback ? `人工批注：${a.human_feedback}` : '',
+               a.archive_key ? `📁 ${a.archive_key}` : '', a.error ? `错误：${a.error}` : ''].filter(Boolean) };
+      try { const d = await api('/assets/' + a.id); if (this.detail?.asset === a) this.detail.reviews = d.reviews; } catch {}
+    },
+
+    // ---------- 画布 ----------
+    touch() { this.lastInteract = Date.now(); },
+    afterRender(fn) { nextTick(() => requestAnimationFrame(() => requestAnimationFrame(fn))); },
+    rel(p) { const r = this.$refs.vp.getBoundingClientRect(); return { x: p.x - r.left, y: p.y - r.top }; },
+    zoomAt(p, f) {
+      const k = clamp(this.cam.k * f, MIN_K, MAX_K); f = k / this.cam.k;
+      this.cam.x = p.x - (p.x - this.cam.x) * f; this.cam.y = p.y - (p.y - this.cam.y) * f; this.cam.k = k;
+    },
+    zoomBy(f) { this.animate(); this.zoomAt({ x: this.vw / 2, y: this.vh / 2 }, f); this.touch(); },
+    animate() { this.anim = true; clearTimeout(this._anim); this._anim = setTimeout(() => this.anim = false, 520); },
+    fit(animated) {
+      if (!this.boxes.length) return;
+      const bx = Math.min(...this.boxes.map(b => b.x)), by = Math.min(...this.boxes.map(b => b.y));
+      const bw = Math.max(...this.boxes.map(b => b.x + b.w)) - bx, bh = Math.max(...this.boxes.map(b => b.y + b.h)) - by;
+      const top = 80, pad = 40, k = clamp(Math.min((this.vw - 2 * pad) / bw, (this.vh - top - pad) / bh), MIN_K, 1);
+      if (animated) this.animate();
+      this.cam = { k, x: (this.vw - bw * k) / 2 - bx * k, y: top + (this.vh - top - pad - bh * k) / 2 - by * k };
+    },
+    focusBox(id) {
+      const b = this.boxMap[id]; if (!b) return;
+      const k = clamp(Math.min(1, (this.vw - 40) / b.w), 0.5, 1);
+      this.animate();
+      this.cam = { k, x: this.vw / 2 - (b.x + b.w / 2) * k, y: 90 - b.y * k };
+    },
+    // 状态变化时把镜头移到当前要处理的地方；用户 5 秒内动过画布就不打扰
+    follow() {
+      const s = this.cur.status;
+      const boards = ['GENERATING','HUMAN_REVIEWING','ARCHIVED'].includes(s);
+      // 手机上全局视图太小，直接对准当前节点或第一个画板
+      if (boards && this.vw >= 640) return this.fit(true);
+      if (boards && this.frameBoxes.length) return this.focusBox(this.frameBoxes[0].id);
+      const a = ACTIVE[s]; if (a) this.focusBox(NODES[Math.min(a[0], 4)].id);
+    },
+    resetLayout() { this.pos = {}; store.set('gaa-layout-' + this.cur.id, {}); this.afterRender(() => this.fit(true)); },
+    onDown(e) {
+      if (e.pointerType === 'mouse' && e.button !== 0 && e.button !== 1) return;
+      const t = e.target;
+      this.moved = 0;
+      if (!this.space && e.button !== 1 && t.closest('input,textarea,select,button,a,summary,.no-pan')) return;
+      this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (this.pointers.size === 2) { this.mode = 'pinch'; this.drag = null; return; }
+      const head = !this.space && e.button === 0 && t.closest('[data-drag]');
+      if (head) {
+        const b = this.boxMap[head.dataset.drag];
+        this.mode = 'node'; this.drag = { id: b.id, ox: b.x, oy: b.y, sx: e.clientX, sy: e.clientY };
+      } else this.mode = 'pan';
+      if (e.button === 1) e.preventDefault();
+      this.touch();
+    },
+    onMove(e) {
+      if (!this.pointers?.has(e.pointerId)) return;
+      const prev = this.pointers.get(e.pointerId), now = { x: e.clientX, y: e.clientY };
+      if (this.mode === 'pinch' && this.pointers.size === 2) {
+        const [a, b] = [...this.pointers.values()];
+        this.pointers.set(e.pointerId, now);
+        const [c, d] = [...this.pointers.values()];
+        const pm = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, nm = { x: (c.x + d.x) / 2, y: (c.y + d.y) / 2 };
+        this.cam.x += nm.x - pm.x; this.cam.y += nm.y - pm.y;
+        this.zoomAt(this.rel(nm), Math.hypot(c.x - d.x, c.y - d.y) / (Math.hypot(a.x - b.x, a.y - b.y) || 1));
+        this.moved = 99; this.touch();
+        return;
+      }
+      this.pointers.set(e.pointerId, now);
+      this.moved += Math.abs(now.x - prev.x) + Math.abs(now.y - prev.y);
+      if (this.mode === 'pan') { this.cam.x += now.x - prev.x; this.cam.y += now.y - prev.y; }
+      else if (this.mode === 'node') {
+        const d = this.drag, k = this.cam.k;
+        this.pos[d.id] = { x: Math.round(d.ox + (now.x - d.sx) / k), y: Math.round(d.oy + (now.y - d.sy) / k) };
+      }
+      this.touch();
+    },
+    onUp(e) {
+      if (!this.pointers?.has(e.pointerId)) return;
+      this.pointers.delete(e.pointerId);
+      if (this.mode === 'node' && this.moved > 3) store.set('gaa-layout-' + this.cur.id, this.pos);
+      if (!this.pointers.size) { this.mode = null; this.drag = null; }
+      else if (this.mode === 'pinch') this.mode = 'pan';
+    },
+    onWheel(e) {
+      const sc = e.target.closest('.scrollable');
+      if (sc && sc.scrollHeight > sc.clientHeight) return;
+      e.preventDefault();
+      this.anim = false;
+      this.zoomAt(this.rel({ x: e.clientX, y: e.clientY }), Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)));
+      this.touch();
+    },
+    onKey(e) {
+      if (e.key === 'Escape') { this.detail = null; this.rejecting = null; this.showNew = false; return; }
+      if (e.target.closest('input,textarea,select') || !this.cur || this.detail || this.rejecting) return;
+      if (e.code === 'Space') { this.space = true; e.preventDefault(); }
+      else if (e.key === '0') this.fit(true);
+      else if (e.key === '+' || e.key === '=') this.zoomBy(1.2);
+      else if (e.key === '-') this.zoomBy(1 / 1.2);
+    },
+    miniJump(e) {
+      const r = this.$refs.mini.getBoundingClientRect(), m = this.mini;
+      const wx = m.bx + ((e.clientX - r.left) * 200 / r.width - m.ox) / m.s, wy = m.by + ((e.clientY - r.top) * 130 / r.height - m.oy) / m.s;
+      this.animate();
+      this.cam.x = this.vw / 2 - wx * this.cam.k; this.cam.y = this.vh / 2 - wy * this.cam.k;
+      this.touch();
+    },
   },
 }).mount('#app');
 </script>
