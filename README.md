@@ -4,6 +4,14 @@
 
 **需求拆解 → 风格母版（提示词扩写）→ 批量生图 → 自动审查 + 人工审查 → 归档到项目资源库**
 
+![无限画布全局视图](docs/screenshots/canvas-overview.png)
+
+| 确认任务清单 + 选画风 | 风格母版（驳回后重新生成） |
+|---|---|
+| ![确认清单](docs/screenshots/plan-confirm.png) | ![风格母版](docs/screenshots/style-master.png) |
+| **画板里逐张人工审核** | **单张详情：提示词与审查记录** |
+| ![人工审核](docs/screenshots/human-review.png) | ![详情](docs/screenshots/asset-detail.png) |
+
 | 子 Agent | 位置 | 职责 |
 |---|---|---|
 | 需求拆解 Agent | `app/agents/requirement_agent.py` | 解析 docx / xlsx / pdf / csv / txt / md。表格优先按列名规则抽取，其余文本交给 qwen-plus（JSON 模式）。输出"英雄 / 角色 / 动作 / 张数"任务清单，合并重复项并标出问题 |
@@ -23,7 +31,7 @@
   - `images`：生图，有限流、指数退避重试，`acks_late`
   - `workflow`：推进工作流
 - **存储**：PostgreSQL（业务表 + checkpoint）；MinIO 对象存储，本地开发时可切换到本地磁盘
-- **前端**：单页 Vue 3（`app/static/index.html`），由 FastAPI 直接托管，不需要单独构建
+- **前端**：单页 Vue 3 无限画布（`app/static/index.html`），由 FastAPI 直接托管，不需要单独构建。五个 Agent 节点用贝塞尔连线串成流程，生成的图按"英雄 · 动作"分组成画板；平移、以光标为中心缩放、节点拖动、小地图、触屏双指缩放都是手写实现，不依赖画布库
 
 ## 流程与状态机
 
@@ -103,11 +111,26 @@ uvicorn app.main:app --reload
 
 不填 `DASHSCOPE_API_KEY`（或设置 `AI_MOCK=true`）时，所有模型调用都换成本地模拟：
 
-- 生图：用 PIL 画一张占位图；
+- 生图：示例需求（亚瑟 / 梅林 / 罗宾，像素风）使用预先画好的示例图（`app/static/examples/frames/`，由 `tools/slice_examples.py` 从序列帧原稿切出）；其他需求用 PIL 在 32×32 网格上现画像素小人再放大（`app/ai/pixel_sprites.py`），英雄名决定配色，职业决定武器，动作和帧序号决定姿势；
 - 审查：按图片哈希打分，约 30% 不通过，用来覆盖重试分支；
 - 需求拆解：用正则从文本里识别"英雄 角色 动作 N 张"。
 
 不需要任何密钥就能跑通完整流程。
+
+### 在线演示模式
+
+设置 `DEMO_MODE=true` 后：
+
+- **无条件走 mock**：即使环境变量或 `.env` 里有 `DASHSCOPE_API_KEY` 也会被清空，不会发出任何付费请求（`tests/test_demo_mode.py` 会拦截所有 HTTP 请求来验证这一点）；
+- 收紧用量：单个任务最多 8 张，每个项目最多 32 张，上传文件最大 2MB；
+- 前端顶部显示"在线演示 · 不调用任何付费模型"，并提供"使用示例需求"按钮（`app/static/examples/demo_requirement.xlsx`）。
+
+Hugging Face Spaces 的部署文件在 `deploy/hf-space/`。
+
+## 开源版说明
+
+- 在线 Demo 和默认配置都是 mock 模式：示例需求展示的是预先画好的示例图，其他需求由本地程序现画，都不是实时调用模型的结果。要接真实模型，在本地 `.env` 里填自己的 `DASHSCOPE_API_KEY`。
+- 原项目在客户环境里对 Qwen-VL 做过 LoRA 微调用于审查；微调数据和权重属于客户，开源版改为直接调用 qwen-vl-max 接口，审查逻辑（规则检查 + 双维度打分 + 代码按阈值判定）保持一致。
 
 ## 测试
 
@@ -124,7 +147,7 @@ pytest -q
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| POST | `/api/projects` | 上传需求文档（multipart：name + file，≤ 20MB），启动流程 |
+| POST | `/api/projects` | 上传需求文档（multipart：name + file，≤ 20MB，演示模式 ≤ 2MB），启动流程 |
 | GET | `/api/projects` / `/api/projects/{id}` | 项目列表 / 详情与各状态图片数量 |
 | POST | `/api/projects/{id}/plan` | 确认（可修改）任务清单，选择风格 |
 | GET / POST | `/api/projects/{id}/masters` / `/master` | 查看母版历史；确认或驳回（驳回必须填意见） |
@@ -146,7 +169,8 @@ app/
   tasks/       Celery 应用、任务、派发抽象（celery / thread / sync）
   workflow/    LangGraph 工作流
   config.py  db.py  models.py  schemas.py  state_machine.py  storage.py  main.py
-  static/      前端页面
+  static/      前端页面（无限画布）+ 示例需求
+deploy/hf-space/  在线演示的 Dockerfile
 tests/
 ```
 

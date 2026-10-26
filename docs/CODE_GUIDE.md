@@ -95,7 +95,7 @@ game-asset-agent/
 │   ├── ai/                    百炼文本/视觉模型、万相生图客户端
 │   ├── parsers/               docx/xlsx/pdf/csv/txt 解析
 │   ├── tasks/                 Celery / 线程池 / 同步 三种执行方式
-│   └── static/index.html      Vue 3 单页前端
+│   └── static/index.html      Vue 3 单页前端（无限画布）
 └── tests/                     单元测试 + 端到端测试
 ```
 
@@ -112,7 +112,7 @@ game-asset-agent/
 | 文件 | 关键内容 | 说明 |
 |---|---|---|
 | [main.py](../app/main.py) | `lifespan` :18、`index` :38 | 启动时 `init_db()` 建表；注册 `projects / review / misc` 三组路由，统一前缀 `/api` |
-| [config.py](../app/config.py) | `Settings` :8、`get_settings` :59 | 全部配置项；`mock_ai` 属性：没填 API Key 就自动 mock；`is_postgres` 决定 checkpoint 用哪种 |
+| [config.py](../app/config.py) | `Settings` :8、`get_settings` :87 | 全部配置项；`mock_ai` 属性：没填 API Key 就自动 mock，`demo_mode` 时无条件 mock；`is_postgres` 决定 checkpoint 用哪种 |
 | [db.py](../app/db.py) | `session_scope` :31、`get_db` :44 | **业务代码统一用 `with session_scope() as s:`**，正常结束自动 commit，异常 rollback |
 | [models.py](../app/models.py) | 5 张表 | 见 [第 7 节](#7-数据模型速查) |
 | [schemas.py](../app/schemas.py) | `PlanConfirm`、`MasterConfirm`、`HumanReview`… | 接口请求体校验和返回结构 |
@@ -193,7 +193,7 @@ regenerate_rejected <───────────────────�
 |---|---|
 | [errors.py](../app/ai/errors.py) | `AIError`（不可重试）与子类 `TransientAIError`（可重试）。**整个项目的重试逻辑都靠这两个类区分** |
 | [dashscope_llm.py](../app/ai/dashscope_llm.py) | 用 OpenAI SDK 的兼容模式调百炼；`chat_json`（文本）/ `vision_json`（看图，图片转 base64）；JSON 解析失败会带错误信息重问一次 |
-| [wanx_client.py](../app/ai/wanx_client.py) | 万相异步接口：`submit` 提交 → `poll` 轮询 → `download` 下载；`generate` 是统一入口；mock 时 `_mock_generate` 用 PIL 画占位图 |
+| [wanx_client.py](../app/ai/wanx_client.py) | 万相异步接口：`submit` 提交 → `poll` 轮询 → `download` 下载；`generate` 是统一入口；mock 时 `_mock_generate` 优先用 `example_images` 的示例图，否则由 `pixel_sprites` 画像素小人 |
 
 ### 3.7 app/parsers/ 文档解析
 
@@ -209,7 +209,7 @@ regenerate_rejected <───────────────────�
 
 ### 3.9 app/static/ 与 tests/
 
-- [static/index.html](../app/static/index.html)：Vue 3 单页，直接调用上面的 `/api/*`，不需要构建。
+- [static/index.html](../app/static/index.html)：Vue 3 单页无限画布，直接调用上面的 `/api/*`，不需要构建。五个流程节点和按"英雄 · 动作"分组的图片画板放在同一个可平移缩放的世界层里，节点位置存在 localStorage。
 - [tests/conftest.py](../tests/conftest.py)：测试固定使用 SQLite + `sync` 模式 + mock。
 - [tests/test_units.py](../tests/test_units.py)：状态机、表格抽取、解析、规则检查等单元测试。
 - [tests/test_workflow_e2e.py](../tests/test_workflow_e2e.py)：`test_full_workflow` 走完整条流程，**是最好的"可执行说明书"**。
@@ -409,10 +409,12 @@ regenerate_rejected <───────────────────�
 
 不填 `DASHSCOPE_API_KEY` 时 `settings.mock_ai == True`，各处分支：
 
-- 生图：PIL 画带 seed 文字的占位图
+- 生图：示例需求用 `app/static/examples/frames/` 里的示例图；其他需求由 `pixel_sprites.py` 画像素小人（英雄定配色、职业定武器、动作和帧序号定姿势）
 - 审查：按图片 md5 打分，约 30% 不通过（用于覆盖重试分支）
 - 需求拆解：正则识别"英雄 角色 动作 N张"
 - 设定卡 / 帧描述 / 修正项：固定模板文本
+
+`DEMO_MODE=true`（在线演示）时会清空 Key、强制 mock，并收紧单任务 / 单项目张数和上传大小。
 
 阅读时可以搜索 `mock_ai` 快速找到所有 mock 分支。
 
