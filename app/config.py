@@ -43,12 +43,40 @@ class Settings(BaseSettings):
     max_human_rounds: int = 3              # 人工驳回后最多回流几轮
     review_pass_score: int = 7             # 内容符合度、风格一致性的及格线（0-10）
     max_images_per_task: int = 16
+    max_upload_mb: int = 20
+
+    # ---- 在线演示 ----
+    # 开启后无条件走 mock：即使环境里配了 Key 也会被清空，不会调用任何付费接口；同时收紧单次用量
+    demo_mode: bool = False
+    demo_max_images_per_task: int = 8
+    demo_max_total_images: int = 32
+    demo_max_upload_mb: int = 2
+
+    def model_post_init(self, __context) -> None:
+        if self.demo_mode:
+            self.dashscope_api_key = ""
 
     @property
     def mock_ai(self) -> bool:
+        if self.demo_mode:
+            return True
         if self.ai_mock is not None:
             return self.ai_mock
         return not self.dashscope_api_key.strip()
+
+    @property
+    def images_per_task_limit(self) -> int:
+        if self.demo_mode:
+            return min(self.max_images_per_task, self.demo_max_images_per_task)
+        return self.max_images_per_task
+
+    @property
+    def total_images_limit(self) -> int | None:
+        return self.demo_max_total_images if self.demo_mode else None
+
+    @property
+    def upload_limit_bytes(self) -> int:
+        return (self.demo_max_upload_mb if self.demo_mode else self.max_upload_mb) * 1024 * 1024
 
     @property
     def is_postgres(self) -> bool:

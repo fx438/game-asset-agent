@@ -15,8 +15,6 @@ from app.tasks import dispatch
 
 router = APIRouter(prefix="/projects", tags=["项目流程"])
 
-MAX_UPLOAD_BYTES = 20 * 1024 * 1024
-
 
 def file_url(key: str | None) -> str | None:
     return f"/api/files/{key}" if key else None
@@ -39,11 +37,12 @@ async def create_project(name: str = Form(..., min_length=1, max_length=200), fi
     suffix = Path(file.filename or "").suffix.lower()
     if suffix not in SUPPORTED_SUFFIXES:
         raise HTTPException(400, f"不支持的文件类型 {suffix or '(无后缀)'}，支持：{', '.join(sorted(SUPPORTED_SUFFIXES))}")
-    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    max_bytes = get_settings().upload_limit_bytes
+    data = await file.read(max_bytes + 1)
     if not data:
         raise HTTPException(400, "文件为空")
-    if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(413, "文件超过 20MB")
+    if len(data) > max_bytes:
+        raise HTTPException(413, f"文件超过 {max_bytes // 1024 // 1024}MB")
 
     project = Project(name=name, source_filename=file.filename, source_key="")
     db.add(project)
@@ -80,9 +79,13 @@ def confirm_plan(project_id: int, body: PlanConfirm, db: Session = Depends(get_d
         raise HTTPException(400, f"未知风格 {body.style_key}")
     if body.tasks is not None and not body.tasks:
         raise HTTPException(400, "任务清单不能为空")
-    limit = get_settings().max_images_per_task
+    settings = get_settings()
+    limit = settings.images_per_task_limit
     if body.tasks and any(t.count > limit for t in body.tasks):
         raise HTTPException(400, f"单个任务最多 {limit} 张")
+    total_limit = settings.total_images_limit
+    if body.tasks and total_limit is not None and sum(t.count for t in body.tasks) > total_limit:
+        raise HTTPException(400, f"在线演示每个项目最多 {total_limit} 张")
     dispatch.enqueue_workflow(project_id, {"type": "confirm_plan", **body.model_dump(mode="json")})
     return {"message": "已确认，正在生成风格母版"}
 

@@ -32,3 +32,6 @@ logs/
 *.iml
 .DS_Store
 Thumbs.db
+
+# 示例图原稿（只提交切好的 frames/）
+app/static/examples/gpt/

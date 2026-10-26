@@ -100,7 +100,7 @@ def extract_from_tables(tables: list[list[list[str]]]) -> tuple[list[TaskItem], 
 
 
 def normalize(tasks: list[TaskItem], issues: list[str]) -> list[TaskItem]:
-    limit = get_settings().max_images_per_task
+    limit = get_settings().images_per_task_limit
     merged: dict[tuple[str, str, str], TaskItem] = {}
     for t in tasks:
         if t.count > limit:
@@ -114,7 +114,23 @@ def normalize(tasks: list[TaskItem], issues: list[str]) -> list[TaskItem]:
             old.description = "；".join(x for x in (old.description, t.description) if x)
         else:
             merged[key] = t
-    return list(merged.values())
+    return _cap_total(list(merged.values()), issues)
+
+
+def _cap_total(tasks: list[TaskItem], issues: list[str]) -> list[TaskItem]:
+    """演示模式下限制整个项目的总张数，超出部分从后往前截掉。"""
+    total_limit = get_settings().total_images_limit
+    if total_limit is None or sum(t.count for t in tasks) <= total_limit:
+        return tasks
+    kept, left = [], total_limit
+    for t in tasks:
+        if left <= 0:
+            break
+        t.count = min(t.count, left)
+        left -= t.count
+        kept.append(t)
+    issues.append(f"在线演示每个项目最多 {total_limit} 张，超出的任务已截断")
+    return kept
 
 
 def _llm_extract(doc: ParsedDocument) -> tuple[list[TaskItem], list[str]]:

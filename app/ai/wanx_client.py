@@ -6,7 +6,6 @@
 该接口没有参考图参数，风格一致性靠"固定风格前缀 + 固定 seed + 角色设定卡"保证。
 """
 import hashlib
-import io
 import logging
 import time
 from dataclasses import dataclass
@@ -121,23 +120,13 @@ def generate(prompt: str, negative_prompt: str, seed: int, label: str = "") -> G
     return GeneratedImage(data=download(url), task_id=task_id, actual_prompt=actual or prompt)
 
 
-# ---------------- mock：不消耗额度，画一张带文字的占位图 ----------------
+# ---------------- mock：不消耗额度，用代码画一张像素风示例图 ----------------
 
 def _mock_generate(prompt: str, seed: int, label: str) -> GeneratedImage:
-    from PIL import Image, ImageDraw, ImageFont
+    from app.ai import example_images, pixel_sprites
 
     w, h = (int(x) for x in get_settings().image_size.split("*"))
     digest = hashlib.md5(f"{prompt}|{seed}".encode()).digest()
-    bg = (60 + digest[0] % 150, 60 + digest[1] % 150, 60 + digest[2] % 150)
-    img = Image.new("RGB", (w, h), bg)
-    draw = ImageDraw.Draw(img)
-    try:
-        font = ImageFont.truetype("msyh.ttc", max(24, w // 24))
-    except OSError:
-        font = ImageFont.load_default()
-    draw.rectangle([w * 0.3, h * 0.2, w * 0.7, h * 0.85], outline=(255, 255, 255), width=6)
-    draw.text((w * 0.05, h * 0.05), f"MOCK  seed={seed}", fill=(255, 255, 255), font=font)
-    draw.text((w * 0.05, h * 0.9), label[:40], fill=(255, 255, 255), font=font)
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    return GeneratedImage(data=buf.getvalue(), task_id=f"mock-{digest.hex()[:12]}", actual_prompt=prompt)
+    # 示例需求优先用预制图，其余情况用代码现画
+    data = example_images.lookup(prompt, seed, label, (w, h)) or pixel_sprites.render(prompt, seed, label, (w, h))
+    return GeneratedImage(data=data, task_id=f"mock-{digest.hex()[:12]}", actual_prompt=prompt)
